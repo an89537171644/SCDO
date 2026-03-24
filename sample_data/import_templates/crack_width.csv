@@ -1,0 +1,3 @@
+timestamp,value,unit,spatial_location,source_type,quality_flag
+2026-03-01T10:00:00Z,0.35,mm,beam_face_zone_2,inspection,validated
+2026-03-01T11:00:00Z,0.37,mm,beam_face_zone_2,inspection,validated

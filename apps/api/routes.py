@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.core import importers
+from apps.core import measurement_profiles
 from apps.core import schemas
 from apps.core import services
 from apps.core.storage import MediaStorage
@@ -200,7 +201,12 @@ def import_json_records(
 ) -> list[dict[str, Any]]:
     config = get_entity_config(entity_name)
     records = importers.normalize_records(payload)
-    schemas_to_create = [config.create_schema.model_validate(record) for record in records]
+    try:
+        schemas_to_create = [config.create_schema.model_validate(record) for record in records]
+        if entity_name == "measurements":
+            measurement_profiles.validate_measurement_import(session, schemas_to_create)
+    except measurement_profiles.MeasurementValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     created = config.service.bulk_create(session, schemas_to_create)
     return [config.read_schema.model_validate(item).model_dump() for item in created]
 
@@ -214,7 +220,12 @@ async def import_file_records(
     config = get_entity_config(entity_name)
     content = await file.read()
     records = importers.parse_upload(file.filename or "", content)
-    schemas_to_create = [config.create_schema.model_validate(record) for record in records]
+    try:
+        schemas_to_create = [config.create_schema.model_validate(record) for record in records]
+        if entity_name == "measurements":
+            measurement_profiles.validate_measurement_import(session, schemas_to_create)
+    except measurement_profiles.MeasurementValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     created = config.service.bulk_create(session, schemas_to_create)
     return [config.read_schema.model_validate(item).model_dump() for item in created]
 

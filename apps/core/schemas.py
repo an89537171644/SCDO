@@ -66,6 +66,10 @@ class StructuralElementBase(BaseModel):
     name: str
     structural_role: Optional[str] = None
     criticality_group: Optional[str] = None
+    role_criticality: Optional[str] = None
+    consequence_class: Optional[str] = None
+    identification_priority: Optional[str] = None
+    degradation_mechanisms: Optional[list[str]] = None
     element_type: Optional[str] = None
     geometry_type: Optional[str] = None
     length: Optional[float] = None
@@ -103,6 +107,10 @@ class UpdateStructuralElement(BaseModel):
     name: Optional[str] = None
     structural_role: Optional[str] = None
     criticality_group: Optional[str] = None
+    role_criticality: Optional[str] = None
+    consequence_class: Optional[str] = None
+    identification_priority: Optional[str] = None
+    degradation_mechanisms: Optional[list[str]] = None
     element_type: Optional[str] = None
     geometry_type: Optional[str] = None
     length: Optional[float] = None
@@ -144,6 +152,19 @@ class DefectBase(BaseModel):
     corrosion_area: Optional[float] = None
     corrosion_depth_or_loss: Optional[float] = None
     section_loss_estimate: Optional[float] = None
+    material_family: Optional[str] = None
+    element_classifier: Optional[str] = None
+    corrosion_depth: Optional[float] = None
+    section_loss_percent: Optional[float] = None
+    weld_damage_type: Optional[str] = None
+    bolt_condition: Optional[str] = None
+    local_buckling_flag: Optional[bool] = None
+    fatigue_crack_length: Optional[float] = None
+    crack_type: Optional[str] = None
+    cover_loss_area: Optional[float] = None
+    rebar_corrosion_class: Optional[str] = None
+    carbonation_depth: Optional[float] = None
+    bond_loss_flag: Optional[bool] = None
     confidence_localization: Optional[float] = None
     defect_status: Optional[str] = None
     source_type: Optional[str] = None
@@ -166,6 +187,19 @@ class UpdateDefect(BaseModel):
     corrosion_area: Optional[float] = None
     corrosion_depth_or_loss: Optional[float] = None
     section_loss_estimate: Optional[float] = None
+    material_family: Optional[str] = None
+    element_classifier: Optional[str] = None
+    corrosion_depth: Optional[float] = None
+    section_loss_percent: Optional[float] = None
+    weld_damage_type: Optional[str] = None
+    bolt_condition: Optional[str] = None
+    local_buckling_flag: Optional[bool] = None
+    fatigue_crack_length: Optional[float] = None
+    crack_type: Optional[str] = None
+    cover_loss_area: Optional[float] = None
+    rebar_corrosion_class: Optional[str] = None
+    carbonation_depth: Optional[float] = None
+    bond_loss_flag: Optional[bool] = None
     confidence_localization: Optional[float] = None
     defect_status: Optional[str] = None
     source_type: Optional[str] = None
@@ -424,6 +458,35 @@ class MissingDataItem(BaseModel):
     description: str
     rank_score: float
     present: bool = False
+    coverage: Optional[float] = None
+    scope: str = "object"
+    element_id: Optional[str] = None
+    element_name: Optional[str] = None
+
+
+class SufficiencyDomainScores(BaseModel):
+    object_passport_score: float
+    structural_model_score: float
+    defect_registry_score: float
+    measurement_score: float
+    boundary_conditions_score: float
+    environment_score: float
+    intervention_history_score: float
+    testing_score: float
+    quality_traceability_score: float
+
+
+class SufficiencyLevelScores(BaseModel):
+    descriptive_readiness_score: float
+    identification_readiness_score: float
+    predictive_readiness_score: float
+
+
+class DataCoverage(BaseModel):
+    temporal_coverage: float
+    spatial_coverage: float
+    observation_density: float
+    uncertainty_level: float
 
 
 class InformationSufficiencyIndex(BaseModel):
@@ -433,6 +496,10 @@ class InformationSufficiencyIndex(BaseModel):
     p1_score: float
     missing_items: list[MissingDataItem]
     counts: dict[str, int]
+    domain_scores: SufficiencyDomainScores
+    level_scores: SufficiencyLevelScores
+    responsibility_factor: float
+    requirement_scores: dict[str, float]
 
 
 class IdentificationReadinessReport(BaseModel):
@@ -442,23 +509,48 @@ class IdentificationReadinessReport(BaseModel):
     recommended_parameters: list[str]
     blocked_parameters: list[str]
     next_measurements: list[str]
+    geometry_ready: str
+    stiffness_ready: str
+    damage_ready: str
+    material_ready: str
+    boundary_ready: str
+    task_scores: dict[str, float]
 
 
 class ElementStateObservationRecord(BaseModel):
     object_id: str
     element_id: str
     timestamp: datetime
+    hierarchy_type: str
+    structural_role: Optional[str] = None
+    role_criticality: Optional[str] = None
+    consequence_class: Optional[str] = None
+    identification_priority: Optional[str] = None
+    degradation_mechanisms: Optional[list[str]] = None
+    support_type: Optional[str] = None
+    support_stiffness: Optional[float] = None
+    joint_type: Optional[str] = None
+    joint_flexibility: Optional[float] = None
+    material_grade_actual: Optional[str] = None
+    elastic_modulus_actual: Optional[float] = None
+    strength_actual: Optional[float] = None
     design_geometry: dict[str, Any]
     design_material: dict[str, Any]
+    actual_material: dict[str, Any]
+    boundary_conditions: dict[str, Any]
+    data_coverage: DataCoverage
+    critical_missing_data_list: list[MissingDataItem]
     current_defects: list[dict[str, Any]]
     current_measurements: list[dict[str, Any]]
     current_environment: list[dict[str, Any]]
     current_operation_mode: Optional[str] = None
     intervention_history: list[dict[str, Any]]
+    test_history: list[dict[str, Any]]
     quality_profile: list[dict[str, Any]]
 
 
 class ObservationPackage(BaseModel):
+    export_version: str = "v1.1"
     object: AssetObjectRead
     elements: list[StructuralElementRead]
     defects: list[DefectRead]

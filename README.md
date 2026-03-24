@@ -106,6 +106,7 @@ python -m streamlit run apps/ui/app.py --server.address 127.0.0.1 --server.port 
 - Откройте вкладку `Измерения`.
 - В блоке `Канал измерений` создайте канал и нажмите `Сохранить`.
 - Ниже выберите этот канал.
+- При необходимости нажмите `Скачать шаблон для типа ...`.
 - Нажмите `Browse files` и выберите CSV или XLSX.
 - Проверьте предпросмотр.
 - Нажмите `Загрузить измерения`.
@@ -116,6 +117,21 @@ python -m streamlit run apps/ui/app.py --server.address 127.0.0.1 --server.port 
 - `value` или `значение`
 
 Пример файла лежит здесь: `sample_data/measurements_template.csv`
+
+Доступные типы измерений:
+
+- `deflection`
+- `displacement`
+- `strain`
+- `crack_width`
+- `settlement`
+- `tilt`
+- `frequency`
+- `acceleration`
+- `temperature`
+- `humidity`
+
+Готовые шаблоны лежат в папке `sample_data/import_templates/`.
 
 ### 6. Как посмотреть оценку данных
 
@@ -142,6 +158,7 @@ python -m streamlit run apps/ui/app.py --server.address 127.0.0.1 --server.port 
 - `alembic/` — миграции.
 - `docs/` — доменная документация и API-контракт.
 - `sample_data/` — demo dataset и пример файла измерений.
+- `sample_data/import_templates/` — шаблоны типизированного импорта по видам измерений.
 - `tests/` — unit и integration tests.
 
 ## Основные выходы
@@ -158,3 +175,26 @@ python -m streamlit run apps/ui/app.py --server.address 127.0.0.1 --server.port 
 - `apps/ui/api_client.py` — обращения к backend API.
 - `apps/ui/import_utils.py` — разбор CSV/XLSX перед загрузкой.
 - `sample_data/measurements_template.csv` — пример файла измерений.
+
+## Новое в расширении A/G
+
+- Для элементов добавлены смысловые поля:
+  - `role_criticality`
+  - `consequence_class`
+  - `identification_priority`
+  - `degradation_mechanisms`
+- Для дефектов добавлены параметризованные поля для стали и железобетона:
+  - `material_family`
+  - `element_classifier`
+  - `corrosion_depth`
+  - `section_loss_percent`
+  - `weld_damage_type`
+  - `bolt_condition`
+  - `local_buckling_flag`
+  - `fatigue_crack_length`
+  - `crack_type`
+  - `cover_loss_area`
+  - `rebar_corrosion_class`
+  - `carbonation_depth`
+  - `bond_loss_flag`
+- В инженерном UI эти поля доступны в формах `Элементы` и `Дефекты`.

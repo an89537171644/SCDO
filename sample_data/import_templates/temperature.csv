@@ -1,0 +1,3 @@
+timestamp,value,unit,spatial_location,source_type,quality_flag
+2026-03-01T10:00:00Z,18.0,C,object,weather,validated
+2026-03-01T11:00:00Z,18.5,C,object,weather,validated

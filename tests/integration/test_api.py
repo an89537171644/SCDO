@@ -46,7 +46,10 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
         json={
             "object_code": "OBJ-API-1",
             "object_name": "API object",
+            "address": "Test address",
             "function_type": "bridge",
+            "responsibility_class": "KS-1",
+            "design_service_life": 100,
             "current_operational_mode": "normal",
         },
     )
@@ -59,16 +62,35 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "object_id": object_id,
             "hierarchy_type": "element",
             "name": "Beam",
+            "structural_role": "primary",
+            "role_criticality": "high",
+            "consequence_class": "CC3",
+            "identification_priority": "high",
+            "degradation_mechanisms": ["corrosion", "fatigue"],
             "element_type": "beam",
+            "geometry_type": "line",
             "length": 20.0,
             "coordinates_global": "0,0,0",
             "material_type": "steel",
             "material_grade_design": "C345",
-            "support_type": "hinged"
+            "material_grade_actual": "C325",
+            "elastic_modulus_design": 210000.0,
+            "elastic_modulus_actual": 205000.0,
+            "strength_design": 345.0,
+            "strength_actual": 330.0,
+            "support_type": "hinged",
+            "support_stiffness": 5000.0,
+            "joint_type": "bolted",
+            "joint_flexibility": 0.02
         },
     )
     assert element_response.status_code == 201
-    element_id = element_response.json()["id"]
+    element_payload = element_response.json()
+    assert element_payload["role_criticality"] == "high"
+    assert element_payload["consequence_class"] == "CC3"
+    assert element_payload["identification_priority"] == "high"
+    assert element_payload["degradation_mechanisms"] == ["corrosion", "fatigue"]
+    element_id = element_payload["id"]
 
     defect_response = client.post(
         "/defects",
@@ -76,11 +98,24 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "object_id": object_id,
             "element_id": element_id,
             "defect_type": "corrosion",
+            "material_family": "steel",
+            "element_classifier": "beam",
             "location_on_element": "midspan",
-            "detection_date": "2026-01-01T00:00:00Z"
+            "detection_date": "2026-01-01T00:00:00Z",
+            "corrosion_area": 1.0,
+            "corrosion_depth": 1.5,
+            "section_loss_percent": 4.0,
+            "bolt_condition": "minor corrosion",
+            "weld_damage_type": "surface indication",
+            "local_buckling_flag": False,
+            "source_type": "inspection"
         },
     )
     assert defect_response.status_code == 201
+    defect_payload = defect_response.json()
+    assert defect_payload["material_family"] == "steel"
+    assert defect_payload["section_loss_percent"] == 4.0
+    assert defect_payload["bolt_condition"] == "minor corrosion"
 
     channel_response = client.post(
         "/channels",
@@ -91,7 +126,9 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "sensor_type": "LVDT",
             "measured_quantity": "deflection",
             "unit": "mm",
-            "spatial_location": "midspan"
+            "spatial_location": "midspan",
+            "sampling_frequency": 1.0,
+            "source_type": "monitoring"
         },
     )
     assert channel_response.status_code == 201
@@ -106,7 +143,11 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "timestamp": "2026-01-01T01:00:00Z",
             "value": 3.4,
             "unit": "mm",
-            "source_type": "monitoring"
+            "quality_flag": "validated",
+            "source_type": "monitoring",
+            "method_reference": "sensor-readout",
+            "accuracy": 0.1,
+            "spatial_location": "midspan"
         },
     )
     assert measurement_response.status_code == 201
@@ -120,20 +161,38 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "entity_type": "measurement",
             "entity_id": measurement_id,
             "source_type": "monitoring",
-            "traceability_score": 0.95
+            "completeness_score": 0.95,
+            "repeatability_score": 0.93,
+            "traceability_score": 0.95,
+            "identification_suitability_score": 0.9
         },
     )
     assert quality_response.status_code == 201
 
     analytics_response = client.get(f"/analytics/objects/{object_id}/information-sufficiency")
     assert analytics_response.status_code == 200
-    assert analytics_response.json()["p0_score"] >= 0.8
+    analytics = analytics_response.json()
+    assert analytics["p0_score"] >= 0.7
+    assert analytics["domain_scores"]["measurement_score"] >= 0.6
+    assert analytics["level_scores"]["identification_readiness_score"] >= 0.6
 
     package_response = client.get(f"/exports/objects/{object_id}/observation-package")
     assert package_response.status_code == 200
     package = package_response.json()
+    assert package["export_version"] == "v1.1"
     assert package["object"]["id"] == object_id
     assert len(package["elements"]) == 1
     assert len(package["measurements"]) == 1
     assert "information_sufficiency_index" in package
-
+    element_state = package["element_state_observation_records"][0]
+    exported_element = package["elements"][0]
+    exported_defect = package["defects"][0]
+    assert exported_element["role_criticality"] == "high"
+    assert exported_element["consequence_class"] == "CC3"
+    assert exported_defect["material_family"] == "steel"
+    assert exported_defect["section_loss_percent"] == 4.0
+    assert "boundary_conditions" in element_state
+    assert "actual_material" in element_state
+    assert "critical_missing_data_list" in element_state
+    assert element_state["role_criticality"] == "high"
+    assert element_state["identification_priority"] == "high"

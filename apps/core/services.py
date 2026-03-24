@@ -238,6 +238,7 @@ def calculate_identification_readiness(
     index = calculate_information_sufficiency(session, object_id)
     return quality.identification_readiness(
         index=index,
+        elements=bundle["elements"],
         measurements=bundle["measurements"],
         defects=bundle["defects"],
         tests=bundle["tests"],
@@ -247,4 +248,3 @@ def calculate_identification_readiness(
 def build_observation_package(session: Session, object_id: str) -> quality.schemas.ObservationPackage:
     bundle = get_object_bundle(session, object_id)
     return exporters.build_observation_package(**bundle)
-

@@ -6,6 +6,7 @@ from uuid import uuid4
 from typing import Optional
 
 from sqlalchemy import JSON
+from sqlalchemy import Boolean
 from sqlalchemy import DateTime
 from sqlalchemy import Float
 from sqlalchemy import ForeignKey
@@ -80,6 +81,10 @@ class StructuralElement(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255))
     structural_role: Mapped[Optional[str]] = mapped_column(String(128))
     criticality_group: Mapped[Optional[str]] = mapped_column(String(64))
+    role_criticality: Mapped[Optional[str]] = mapped_column(String(64))
+    consequence_class: Mapped[Optional[str]] = mapped_column(String(64))
+    identification_priority: Mapped[Optional[str]] = mapped_column(String(64))
+    degradation_mechanisms: Mapped[Optional[list[str]]] = mapped_column(JSON)
     element_type: Mapped[Optional[str]] = mapped_column(String(128))
     geometry_type: Mapped[Optional[str]] = mapped_column(String(128))
     length: Mapped[Optional[float]] = mapped_column(Float)
@@ -130,6 +135,19 @@ class Defect(TimestampMixin, Base):
     corrosion_area: Mapped[Optional[float]] = mapped_column(Float)
     corrosion_depth_or_loss: Mapped[Optional[float]] = mapped_column(Float)
     section_loss_estimate: Mapped[Optional[float]] = mapped_column(Float)
+    material_family: Mapped[Optional[str]] = mapped_column(String(64))
+    element_classifier: Mapped[Optional[str]] = mapped_column(String(128))
+    corrosion_depth: Mapped[Optional[float]] = mapped_column(Float)
+    section_loss_percent: Mapped[Optional[float]] = mapped_column(Float)
+    weld_damage_type: Mapped[Optional[str]] = mapped_column(String(128))
+    bolt_condition: Mapped[Optional[str]] = mapped_column(String(128))
+    local_buckling_flag: Mapped[Optional[bool]] = mapped_column(Boolean)
+    fatigue_crack_length: Mapped[Optional[float]] = mapped_column(Float)
+    crack_type: Mapped[Optional[str]] = mapped_column(String(128))
+    cover_loss_area: Mapped[Optional[float]] = mapped_column(Float)
+    rebar_corrosion_class: Mapped[Optional[str]] = mapped_column(String(128))
+    carbonation_depth: Mapped[Optional[float]] = mapped_column(Float)
+    bond_loss_flag: Mapped[Optional[bool]] = mapped_column(Boolean)
     confidence_localization: Mapped[Optional[float]] = mapped_column(Float)
     defect_status: Mapped[Optional[str]] = mapped_column(String(64))
     source_type: Mapped[Optional[str]] = mapped_column(String(64))

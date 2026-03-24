@@ -7,14 +7,17 @@ import os
 from pathlib import Path
 import sys
 from typing import Any
-from typing import Optional
 
+import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from apps.core.measurement_profiles import build_template_csv
+from apps.core.measurement_profiles import get_measurement_profile
+from apps.core.measurement_profiles import list_measurement_profiles
 from apps.ui.api_client import APIClient
 from apps.ui.api_client import APIError
 from apps.ui.import_utils import parse_measurement_file
@@ -60,20 +63,93 @@ READINESS_TEXT = {
     "partial": "Частично готово",
     "not_ready": "Пока не готово",
 }
+TASK_STATUS_TEXT = {
+    "identifiable": "Можно использовать",
+    "qualitative_only": "Пока только качественно",
+    "not_ready": "Пока нельзя",
+}
 REQUIREMENT_LABELS = {
-    "object.identity": "Нет полного паспорта объекта",
+    "object.identity": "Неполный паспорт объекта",
     "object.function_type": "Не указано назначение объекта",
     "element.tree": "Нет дерева элементов",
     "element.geometry": "Не хватает геометрии элементов",
     "element.material": "Не хватает данных о материале",
     "defect.registry": "Нет реестра дефектов",
     "observation.measurements": "Нет базовых измерений",
-    "quality.traceability": "Нет данных о качестве и источнике",
-    "element.boundary_conditions": "Нет сведений о закреплениях и связях",
-    "environment.effects": "Нет данных о среде и воздействиях",
-    "intervention.history": "Нет истории ремонтов и усилений",
+    "quality.traceability": "Нет сведений об источнике и качестве",
+    "element.boundary_conditions": "Нет сведений об опирании и связях",
+    "environment.effects": "Нет данных о среде",
+    "intervention.history": "Нет истории ремонтов",
     "tests.ndt": "Нет результатов испытаний",
     "measurement.channel_metadata": "Не хватает описания каналов измерений",
+}
+PROFILE_OPTIONS = {f"{profile.label_ru} ({profile.code})": profile.code for profile in list_measurement_profiles()}
+ROLE_CRITICALITY_OPTIONS = {
+    "Не указано": None,
+    "Высокая": "high",
+    "Средняя": "medium",
+    "Низкая": "low",
+}
+ROLE_CRITICALITY_TEXT = {
+    "A": "Высокая",
+    "high": "Высокая",
+    "critical": "Высокая",
+    "medium": "Средняя",
+    "B": "Средняя",
+    "low": "Низкая",
+    "C": "Низкая",
+}
+CONSEQUENCE_CLASS_OPTIONS = {
+    "Не указано": None,
+    "CC3 / KS-3": "CC3",
+    "CC2 / KS-2": "CC2",
+    "CC1 / KS-1": "CC1",
+}
+CONSEQUENCE_CLASS_TEXT = {
+    "CC3": "CC3 / KS-3",
+    "KS-3": "CC3 / KS-3",
+    "CC2": "CC2 / KS-2",
+    "KS-2": "CC2 / KS-2",
+    "CC1": "CC1 / KS-1",
+    "KS-1": "CC1 / KS-1",
+}
+IDENTIFICATION_PRIORITY_OPTIONS = {
+    "Не указано": None,
+    "Сначала собрать": "high",
+    "Обычный": "medium",
+    "Низкий": "low",
+}
+IDENTIFICATION_PRIORITY_TEXT = {
+    "high": "Сначала собрать",
+    "critical": "Сначала собрать",
+    "medium": "Обычный",
+    "normal": "Обычный",
+    "low": "Низкий",
+}
+DEGRADATION_MECHANISM_OPTIONS = {
+    "Коррозия": "corrosion",
+    "Усталость": "fatigue",
+    "Трещины": "cracking",
+    "Потеря жёсткости": "stiffness_loss",
+    "Износ": "wear",
+    "Влага и среда": "environment",
+}
+DEGRADATION_MECHANISM_TEXT = {value: key for key, value in DEGRADATION_MECHANISM_OPTIONS.items()}
+MATERIAL_FAMILY_OPTIONS = {
+    "Не указано": None,
+    "Сталь": "steel",
+    "Железобетон": "concrete",
+    "Другое": "other",
+}
+MATERIAL_FAMILY_TEXT = {
+    "steel": "Сталь",
+    "concrete": "Железобетон",
+    "other": "Другое",
+}
+BOOL_OPTIONS = {
+    "Не указано": None,
+    "Да": True,
+    "Нет": False,
 }
 
 
@@ -90,7 +166,7 @@ def safe_call(action: str, func, *args, **kwargs):
 
 
 def object_label(item: dict[str, Any]) -> str:
-    return f"{item.get('object_code', '')} — {item.get('object_name', '')}"
+    return f"{item.get('object_code', '')} - {item.get('object_name', '')}"
 
 
 def format_score(value: float) -> str:
@@ -101,13 +177,53 @@ def date_to_iso(value: date) -> str:
     return datetime.combine(value, datetime.min.time()).isoformat() + "Z"
 
 
+def friendly_value(value: Any, labels: dict[str, str]) -> str:
+    if value in (None, "", []):
+        return ""
+    return labels.get(str(value), str(value))
+
+
+def friendly_values(values: list[str] | None, labels: dict[str, str]) -> str:
+    if not values:
+        return ""
+    return ", ".join(labels.get(item, item) for item in values)
+
+
+def summarize_defect_details(item: dict[str, Any]) -> str:
+    parts: list[str] = []
+    if item.get("section_loss_percent") is not None:
+        parts.append(f"потеря сечения {item['section_loss_percent']}")
+    if item.get("corrosion_depth") is not None:
+        parts.append(f"коррозия {item['corrosion_depth']}")
+    if item.get("weld_damage_type"):
+        parts.append(f"сварка: {item['weld_damage_type']}")
+    if item.get("bolt_condition"):
+        parts.append(f"болты: {item['bolt_condition']}")
+    if item.get("fatigue_crack_length") is not None:
+        parts.append(f"усталостная трещина {item['fatigue_crack_length']}")
+    if item.get("crack_type"):
+        parts.append(f"трещина: {item['crack_type']}")
+    if item.get("cover_loss_area") is not None:
+        parts.append(f"защитный слой {item['cover_loss_area']}")
+    if item.get("rebar_corrosion_class"):
+        parts.append(f"арматура: {item['rebar_corrosion_class']}")
+    if item.get("carbonation_depth") is not None:
+        parts.append(f"карбонизация {item['carbonation_depth']}")
+    if item.get("local_buckling_flag") is not None:
+        parts.append("местная потеря устойчивости: да" if item["local_buckling_flag"] else "местная потеря устойчивости: нет")
+    if item.get("bond_loss_flag") is not None:
+        parts.append("потеря сцепления: да" if item["bond_loss_flag"] else "потеря сцепления: нет")
+    return ", ".join(parts[:4])
+
+
 def build_element_tree(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_parent: dict[Optional[str], list[dict[str, Any]]] = {}
+    by_parent: dict[str | None, list[dict[str, Any]]] = {}
     for item in elements:
         by_parent.setdefault(item.get("parent_id"), []).append(item)
+
     rows: list[dict[str, Any]] = []
 
-    def walk(parent_id: Optional[str], level: int) -> None:
+    def walk(parent_id: str | None, level: int) -> None:
         for item in sorted(by_parent.get(parent_id, []), key=lambda row: row.get("name") or ""):
             rows.append(
                 {
@@ -115,6 +231,10 @@ def build_element_tree(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "Тип узла": FRIENDLY_HIERARCHY.get(item.get("hierarchy_type"), item.get("hierarchy_type")),
                     "Название": ("    " * level) + (item.get("name") or ""),
                     "Роль": item.get("structural_role") or "",
+                    "Важность": friendly_value(item.get("role_criticality") or item.get("criticality_group"), ROLE_CRITICALITY_TEXT),
+                    "Класс последствий": friendly_value(item.get("consequence_class"), CONSEQUENCE_CLASS_TEXT),
+                    "Приоритет": friendly_value(item.get("identification_priority"), IDENTIFICATION_PRIORITY_TEXT),
+                    "Механизмы": friendly_values(item.get("degradation_mechanisms"), DEGRADATION_MECHANISM_TEXT),
                     "Материал": item.get("material_type") or "",
                 }
             )
@@ -136,7 +256,7 @@ def channel_options(channels: list[dict[str, Any]], elements: list[dict[str, Any
     result: dict[str, dict[str, Any]] = {}
     for channel in channels:
         label = (
-            f"{channel.get('channel_code')} — {channel.get('measured_quantity')} "
+            f"{channel.get('channel_code')} - {channel.get('measured_quantity')} "
             f"({element_names.get(channel.get('element_id'), 'без элемента')})"
         )
         result[label] = channel
@@ -146,11 +266,13 @@ def channel_options(channels: list[dict[str, Any]], elements: list[dict[str, Any
 def show_sidebar(objects: list[dict[str, Any]]) -> None:
     st.sidebar.title("СКДО")
     st.sidebar.text_input("Адрес backend API", key="api_base_url", help="Обычно это http://127.0.0.1:8000")
+
     client = make_client()
     if st.sidebar.button("Проверить связь", use_container_width=True):
         result = safe_call("Не удалось проверить связь", client.health)
         if result:
             st.sidebar.success("Связь с API есть.")
+
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"[Открыть Swagger]({st.session_state['api_base_url'].rstrip('/')}/docs)")
 
@@ -167,29 +289,38 @@ def show_sidebar(objects: list[dict[str, Any]]) -> None:
 
 def show_objects_section(client: APIClient, objects: list[dict[str, Any]]) -> None:
     st.header("Объекты")
-    col_list, col_form = st.columns([1.35, 1])
+    col_list, col_form = st.columns([1.4, 1])
+
     with col_list:
         if objects:
-            table = [
-                {
-                    "Код": item.get("object_code"),
-                    "Название": item.get("object_name"),
-                    "Адрес": item.get("address") or "",
-                    "Назначение": item.get("function_type") or "",
-                    "Режим": item.get("current_operational_mode") or "",
-                }
-                for item in objects
-            ]
-            st.dataframe(table, use_container_width=True, hide_index=True)
+            st.dataframe(
+                [
+                    {
+                        "Код": item.get("object_code"),
+                        "Название": item.get("object_name"),
+                        "Адрес": item.get("address") or "",
+                        "Назначение": item.get("function_type") or "",
+                        "Режим": item.get("current_operational_mode") or "",
+                    }
+                    for item in objects
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
         else:
             st.info("Объектов пока нет. Справа можно создать первый объект.")
 
     with col_form:
-        mode = st.radio("Что сделать", ["Создать объект", "Редактировать выбранный объект"], horizontal=True)
+        mode = st.radio(
+            "Что сделать",
+            ["Создать объект", "Редактировать выбранный объект"],
+            horizontal=True,
+        )
         current_object = next((item for item in objects if item["id"] == st.session_state.get("selected_object_id")), None)
         if mode == "Редактировать выбранный объект" and not current_object:
-            st.warning("Сначала выберите объект слева в меню.")
+            st.warning("Сначала выберите объект слева.")
             return
+
         defaults = current_object or {}
         with st.form("object_form"):
             object_code = st.text_input("Код объекта", value=defaults.get("object_code", ""))
@@ -212,6 +343,7 @@ def show_objects_section(client: APIClient, objects: list[dict[str, Any]]) -> No
             if not object_name.strip():
                 st.error("Введите название объекта.")
                 return
+
             payload = {
                 "object_code": object_code.strip(),
                 "object_name": object_name.strip(),
@@ -225,6 +357,7 @@ def show_objects_section(client: APIClient, objects: list[dict[str, Any]]) -> No
                 "current_operational_mode": current_operational_mode.strip() or None,
                 "source_type": source_type.strip() or None,
             }
+
             if mode == "Создать объект":
                 created = safe_call("Не удалось создать объект", client.create_object, payload)
                 if created:
@@ -236,6 +369,58 @@ def show_objects_section(client: APIClient, objects: list[dict[str, Any]]) -> No
                 if updated:
                     st.success("Объект обновлён.")
                     st.rerun()
+
+
+def show_dashboard_section(
+    current_object: dict[str, Any],
+    elements: list[dict[str, Any]],
+    defects: list[dict[str, Any]],
+    channels: list[dict[str, Any]],
+    measurements: list[dict[str, Any]],
+    information_data: dict[str, Any] | None,
+    readiness_data: dict[str, Any] | None,
+) -> None:
+    st.subheader("Панель объекта")
+    left, right = st.columns([1.1, 1])
+
+    with left:
+        st.markdown("#### Карточка объекта")
+        st.dataframe(
+            [
+                {"Поле": "Код объекта", "Значение": current_object.get("object_code")},
+                {"Поле": "Название", "Значение": current_object.get("object_name")},
+                {"Поле": "Назначение", "Значение": current_object.get("function_type") or ""},
+                {"Поле": "Класс ответственности", "Значение": current_object.get("responsibility_class") or ""},
+                {"Поле": "Режим", "Значение": current_object.get("current_operational_mode") or ""},
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with right:
+        metric1, metric2, metric3, metric4 = st.columns(4)
+        metric1.metric("Элементы", len(elements))
+        metric2.metric("Дефекты", len(defects))
+        metric3.metric("Каналы", len(channels))
+        metric4.metric("Измерения", len(measurements))
+        if information_data:
+            st.metric("Полнота данных", format_score(information_data["total_score"]))
+        if readiness_data:
+            st.metric("Готовность", READINESS_TEXT.get(readiness_data["readiness_level"], readiness_data["readiness_level"]))
+
+    if information_data and information_data.get("missing_items"):
+        st.markdown("#### Что ещё стоит добавить")
+        st.dataframe(
+            [
+                {
+                    "Что не хватает": REQUIREMENT_LABELS.get(item.get("code"), item.get("description")),
+                    "Покрытие": format_score(item.get("coverage") or 0.0),
+                }
+                for item in information_data["missing_items"][:8]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def show_elements_tab(client: APIClient, selected_object_id: str, elements: list[dict[str, Any]]) -> None:
@@ -253,6 +438,10 @@ def show_elements_tab(client: APIClient, selected_object_id: str, elements: list
         hierarchy_label = st.selectbox("Тип узла", list(FRIENDLY_HIERARCHY.values()), index=2)
         name = st.text_input("Название")
         structural_role = st.text_input("Роль элемента")
+        role_criticality_label = st.selectbox("Насколько важен элемент", list(ROLE_CRITICALITY_OPTIONS.keys()))
+        consequence_class_label = st.selectbox("Класс последствий", list(CONSEQUENCE_CLASS_OPTIONS.keys()))
+        identification_priority_label = st.selectbox("Приоритет для расчёта", list(IDENTIFICATION_PRIORITY_OPTIONS.keys()))
+        degradation_labels = st.multiselect("Что может ухудшать состояние", list(DEGRADATION_MECHANISM_OPTIONS.keys()))
         element_type = st.text_input("Тип элемента")
         material_type = st.text_input("Материал")
         material_grade_design = st.text_input("Марка материала")
@@ -271,13 +460,20 @@ def show_elements_tab(client: APIClient, selected_object_id: str, elements: list
         if not name.strip():
             st.error("Введите название элемента.")
             return
+
         hierarchy_type = next(key for key, value in FRIENDLY_HIERARCHY.items() if value == hierarchy_label)
+        role_criticality = ROLE_CRITICALITY_OPTIONS[role_criticality_label]
         payload = {
             "object_id": selected_object_id,
             "parent_id": options.get(parent_label),
             "hierarchy_type": hierarchy_type,
             "name": name.strip(),
             "structural_role": structural_role.strip() or None,
+            "criticality_group": {"high": "A", "medium": "B", "low": "C"}.get(role_criticality),
+            "role_criticality": role_criticality,
+            "consequence_class": CONSEQUENCE_CLASS_OPTIONS[consequence_class_label],
+            "identification_priority": IDENTIFICATION_PRIORITY_OPTIONS[identification_priority_label],
+            "degradation_mechanisms": [DEGRADATION_MECHANISM_OPTIONS[label] for label in degradation_labels] or None,
             "element_type": element_type.strip() or None,
             "material_type": material_type.strip() or None,
             "material_grade_design": material_grade_design.strip() or None,
@@ -297,11 +493,22 @@ def show_defects_tab(client: APIClient, selected_object_id: str, elements: list[
     st.subheader("Дефекты")
     element_names = {item["id"]: item.get("name") for item in elements}
     if defects:
-        table = [
-            {"Элемент": element_names.get(item.get("element_id"), ""), "Тип дефекта": item.get("defect_type"), "Место": item.get("location_on_element"), "Дата": item.get("detection_date"), "Статус": item.get("defect_status") or ""}
-            for item in defects
-        ]
-        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.dataframe(
+            [
+                {
+                    "Элемент": element_names.get(item.get("element_id"), ""),
+                    "Тип дефекта": item.get("defect_type"),
+                    "Материал": friendly_value(item.get("material_family"), MATERIAL_FAMILY_TEXT),
+                    "Место": item.get("location_on_element"),
+                    "Дата": item.get("detection_date"),
+                    "Статус": item.get("defect_status") or "",
+                    "Подробности": summarize_defect_details(item),
+                }
+                for item in defects
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
     else:
         st.info("Дефектов пока нет.")
 
@@ -313,13 +520,43 @@ def show_defects_tab(client: APIClient, selected_object_id: str, elements: list[
     with st.form("defect_form"):
         st.markdown("#### Добавить дефект")
         element_label = st.selectbox("Элемент", list(options.keys()))
+        material_family_label = st.selectbox("Материал элемента", list(MATERIAL_FAMILY_OPTIONS.keys()))
         defect_type = st.text_input("Тип дефекта")
         defect_subtype = st.text_input("Уточнение")
+        element_classifier = st.text_input("Какой это элемент")
         location_on_element = st.text_input("Где находится дефект")
         detection_date = st.date_input("Дата обнаружения", value=date.today())
         defect_status = st.text_input("Статус")
-        crack_width = st.number_input("Ширина трещины", min_value=0.0, value=0.0)
-        corrosion_area = st.number_input("Площадь повреждения", min_value=0.0, value=0.0)
+
+        st.markdown("##### Основные размеры")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            crack_width = st.number_input("Ширина трещины", min_value=0.0, value=0.0)
+        with col2:
+            corrosion_area = st.number_input("Площадь повреждения", min_value=0.0, value=0.0)
+        with col3:
+            corrosion_depth = st.number_input("Глубина коррозии", min_value=0.0, value=0.0)
+
+        material_family = MATERIAL_FAMILY_OPTIONS[material_family_label]
+        if material_family == "steel":
+            st.caption("Для стали можно указать потерю сечения и состояние сварных или болтовых узлов.")
+        elif material_family == "concrete":
+            st.caption("Для железобетона можно указать тип трещины, состояние защитного слоя и арматуры.")
+
+        col4, col5 = st.columns(2)
+        with col4:
+            section_loss_percent = st.number_input("Потеря сечения, %", min_value=0.0, max_value=100.0, value=0.0)
+            weld_damage_type = st.text_input("Повреждение сварного шва")
+            fatigue_crack_length = st.number_input("Длина усталостной трещины", min_value=0.0, value=0.0)
+            crack_type = st.text_input("Тип трещины")
+            cover_loss_area = st.number_input("Площадь потери защитного слоя", min_value=0.0, value=0.0)
+        with col5:
+            bolt_condition = st.text_input("Состояние болтового узла")
+            rebar_corrosion_class = st.text_input("Состояние арматуры")
+            carbonation_depth = st.number_input("Глубина карбонизации", min_value=0.0, value=0.0)
+            local_buckling_label = st.selectbox("Есть местная потеря устойчивости", list(BOOL_OPTIONS.keys()))
+            bond_loss_label = st.selectbox("Есть потеря сцепления", list(BOOL_OPTIONS.keys()))
+
         source_document = st.text_input("Документ-источник")
         submitted = st.form_submit_button("Сохранить", type="primary", use_container_width=True)
 
@@ -330,16 +567,30 @@ def show_defects_tab(client: APIClient, selected_object_id: str, elements: list[
         if not location_on_element.strip():
             st.error("Введите место дефекта.")
             return
+
         payload = {
             "object_id": selected_object_id,
             "element_id": options[element_label],
             "defect_type": defect_type.strip(),
             "defect_subtype": defect_subtype.strip() or None,
+            "material_family": material_family,
+            "element_classifier": element_classifier.strip() or None,
             "location_on_element": location_on_element.strip(),
             "detection_date": date_to_iso(detection_date),
             "defect_status": defect_status.strip() or None,
             "crack_width": crack_width or None,
             "corrosion_area": corrosion_area or None,
+            "corrosion_depth": corrosion_depth or None,
+            "section_loss_percent": section_loss_percent or None,
+            "weld_damage_type": weld_damage_type.strip() or None,
+            "bolt_condition": bolt_condition.strip() or None,
+            "local_buckling_flag": BOOL_OPTIONS[local_buckling_label],
+            "fatigue_crack_length": fatigue_crack_length or None,
+            "crack_type": crack_type.strip() or None,
+            "cover_loss_area": cover_loss_area or None,
+            "rebar_corrosion_class": rebar_corrosion_class.strip() or None,
+            "carbonation_depth": carbonation_depth or None,
+            "bond_loss_flag": BOOL_OPTIONS[bond_loss_label],
             "source_document": source_document.strip() or None,
         }
         created = safe_call("Не удалось добавить дефект", client.create_defect, payload)
@@ -348,7 +599,13 @@ def show_defects_tab(client: APIClient, selected_object_id: str, elements: list[
             st.rerun()
 
 
-def show_measurements_tab(client: APIClient, selected_object_id: str, elements: list[dict[str, Any]], channels: list[dict[str, Any]], measurements: list[dict[str, Any]]) -> None:
+def show_measurements_tab(
+    client: APIClient,
+    selected_object_id: str,
+    elements: list[dict[str, Any]],
+    channels: list[dict[str, Any]],
+    measurements: list[dict[str, Any]],
+) -> None:
     st.subheader("Измерения")
     options = element_options(elements)
     if not options:
@@ -359,10 +616,16 @@ def show_measurements_tab(client: APIClient, selected_object_id: str, elements: 
     with st.form("channel_form"):
         element_label = st.selectbox("Для какого элемента канал", list(options.keys()))
         channel_code = st.text_input("Код канала")
-        measured_quantity = st.text_input("Что измеряем", value="deflection")
-        unit = st.text_input("Единица измерения", value="mm")
+        measurement_type_label = st.selectbox("Тип измерения", list(PROFILE_OPTIONS.keys()), index=0)
+        measurement_type = PROFILE_OPTIONS[measurement_type_label]
+        profile = get_measurement_profile(measurement_type)
+        unit = st.selectbox("Единица измерения", list(profile.allowed_units))
         sensor_type = st.text_input("Прибор", value="LVDT")
         spatial_location = st.text_input("Где установлен датчик", value="midspan")
+        st.caption(
+            f"Диапазон для {profile.label_ru}: {profile.unit_ranges[unit][0]} .. {profile.unit_ranges[unit][1]} {unit}. "
+            f"Правило ресемплинга: {profile.resampling_rule}."
+        )
         create_channel = st.form_submit_button("Сохранить", type="primary", use_container_width=True)
 
     if create_channel:
@@ -377,8 +640,8 @@ def show_measurements_tab(client: APIClient, selected_object_id: str, elements: 
                 "element_id": options[element_label],
                 "channel_code": channel_code.strip(),
                 "sensor_type": sensor_type.strip() or None,
-                "measured_quantity": measured_quantity.strip() or None,
-                "unit": unit.strip() or None,
+                "measured_quantity": measurement_type,
+                "unit": unit,
                 "measurement_class": "raw",
                 "spatial_location": spatial_location.strip() or None,
             },
@@ -394,9 +657,25 @@ def show_measurements_tab(client: APIClient, selected_object_id: str, elements: 
     else:
         selected_channel_label = st.selectbox("Канал для загрузки", list(channel_map.keys()))
         selected_channel = channel_map[selected_channel_label]
+        try:
+            channel_profile = get_measurement_profile(selected_channel.get("measured_quantity", ""))
+            st.caption(
+                f"Тип: {channel_profile.label_ru}. Разрешённые единицы: {', '.join(channel_profile.allowed_units)}. "
+                f"Правило ресемплинга: {channel_profile.resampling_rule}."
+            )
+            st.download_button(
+                f"Скачать шаблон для типа {channel_profile.code}",
+                data=build_template_csv(channel_profile.code),
+                file_name=f"{channel_profile.code}_template.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        except Exception:
+            st.warning("Для выбранного канала не найден профиль измерения. Проверьте тип канала.")
+
         st.caption(
-            "Допустимые колонки: дата/время, значение, единица, источник, статус, метод, "
-            "точность, место. Можно использовать русские или английские названия."
+            "Допустимые колонки: дата/время, значение, единица, источник, статус, метод, точность, место. "
+            "Можно использовать русские или английские названия."
         )
         upload_file = st.file_uploader("Файл с измерениями", type=["csv", "xlsx"])
         if upload_file is not None:
@@ -415,7 +694,12 @@ def show_measurements_tab(client: APIClient, selected_object_id: str, elements: 
                             channel_id=selected_channel["id"],
                             default_unit=selected_channel["unit"],
                         )
-                        imported = safe_call("Не удалось загрузить измерения", client.import_json, "measurements", prepared)
+                        imported = safe_call(
+                            "Не удалось загрузить измерения",
+                            client.import_json,
+                            "measurements",
+                            prepared,
+                        )
                         if imported is not None:
                             st.success(f"Загружено записей: {len(imported)}")
                             st.rerun()
@@ -424,36 +708,195 @@ def show_measurements_tab(client: APIClient, selected_object_id: str, elements: 
 
     st.markdown("#### 3. Последние загруженные измерения")
     if measurements:
-        table = [{"Дата": item.get("timestamp"), "Значение": item.get("value"), "Ед.": item.get("unit"), "Источник": item.get("source_type") or ""} for item in measurements[:20]]
-        st.dataframe(table, use_container_width=True, hide_index=True)
+        chart_rows = sorted(
+            [
+                {"timestamp": item.get("timestamp"), "value": item.get("value")}
+                for item in measurements
+                if item.get("timestamp") and item.get("value") is not None
+            ],
+            key=lambda item: item["timestamp"],
+        )
+        if chart_rows:
+            chart_df = pd.DataFrame(chart_rows)
+            chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"])
+            chart_df = chart_df.set_index("timestamp")
+            st.line_chart(chart_df)
+
+        st.dataframe(
+            [
+                {
+                    "Дата": item.get("timestamp"),
+                    "Значение": item.get("value"),
+                    "Ед.": item.get("unit"),
+                    "Источник": item.get("source_type") or "",
+                }
+                for item in measurements[:20]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
     else:
         st.info("Измерения пока не загружены.")
 
 
-def show_information_tab(client: APIClient, selected_object_id: str) -> None:
+def show_environment_tab(environment_records: list[dict[str, Any]]) -> None:
+    st.subheader("Среда")
+    if not environment_records:
+        st.info("Данные среды пока не загружены.")
+        return
+    st.dataframe(
+        [
+            {
+                "Дата": item.get("timestamp"),
+                "Температура": item.get("temperature"),
+                "Влажность": item.get("humidity"),
+                "Агрессивность": item.get("corrosion_aggressiveness") or "",
+                "Нагрузка": item.get("load_summary") or "",
+            }
+            for item in environment_records
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def show_interventions_tab(interventions: list[dict[str, Any]]) -> None:
+    st.subheader("Ремонты и усиления")
+    if not interventions:
+        st.info("Записей о ремонтах пока нет.")
+        return
+    st.dataframe(
+        [
+            {
+                "Дата": item.get("date"),
+                "Тип": item.get("intervention_type"),
+                "Описание": item.get("description") or "",
+                "Качество": item.get("quality_of_execution") or "",
+            }
+            for item in interventions
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def show_tests_tab(tests: list[dict[str, Any]]) -> None:
+    st.subheader("Испытания и НК")
+    if not tests:
+        st.info("Испытаний пока нет.")
+        return
+    st.dataframe(
+        [
+            {
+                "Дата": item.get("date"),
+                "Тип": item.get("test_type"),
+                "Свойство": item.get("measured_property"),
+                "Значение": item.get("test_value"),
+                "Единица": item.get("unit"),
+            }
+            for item in tests
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def show_quality_tab(quality_records: list[dict[str, Any]]) -> None:
+    st.subheader("Качество данных")
+    if not quality_records:
+        st.info("Записей о качестве пока нет.")
+        return
+    st.dataframe(
+        [
+            {
+                "Сущность": item.get("entity_type"),
+                "Источник": item.get("source_type"),
+                "Полнота": item.get("completeness_score"),
+                "Повторяемость": item.get("repeatability_score"),
+                "Трассируемость": item.get("traceability_score"),
+                "Пригодность": item.get("identification_suitability_score"),
+            }
+            for item in quality_records
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def show_timeline_tab(
+    defects: list[dict[str, Any]],
+    interventions: list[dict[str, Any]],
+    tests: list[dict[str, Any]],
+) -> None:
+    st.subheader("Хронология событий")
+    rows: list[dict[str, Any]] = []
+    for item in defects:
+        rows.append({"Дата": item.get("detection_date"), "Событие": "Дефект", "Описание": item.get("defect_type")})
+    for item in interventions:
+        rows.append({"Дата": item.get("date"), "Событие": "Ремонт/усиление", "Описание": item.get("intervention_type")})
+    for item in tests:
+        rows.append({"Дата": item.get("date"), "Событие": "Испытание/НК", "Описание": item.get("test_type")})
+    if rows:
+        st.dataframe(sorted(rows, key=lambda item: item.get("Дата") or ""), use_container_width=True, hide_index=True)
+    else:
+        st.info("Событий пока нет.")
+
+
+def show_information_tab(data: dict[str, Any] | None) -> None:
     st.subheader("Оценка полноты данных")
     st.caption("Это экран information_sufficiency_index")
-    data = safe_call("Не удалось получить оценку данных", client.get_information_sufficiency, selected_object_id)
     if not data:
+        st.info("Данные пока недоступны.")
         return
+
     col1, col2, col3 = st.columns(3)
     col1.metric("Общая оценка", format_score(data["total_score"]))
     col2.metric("Обязательные данные", format_score(data["p0_score"]))
     col3.metric("Важные данные", format_score(data["p1_score"]))
+
+    if data.get("domain_scores"):
+        st.markdown("#### Частные индексы")
+        st.dataframe(
+            [
+                {"Показатель": "Паспорт объекта", "Оценка": format_score(data["domain_scores"]["object_passport_score"])},
+                {"Показатель": "Расчётная модель", "Оценка": format_score(data["domain_scores"]["structural_model_score"])},
+                {"Показатель": "Реестр дефектов", "Оценка": format_score(data["domain_scores"]["defect_registry_score"])},
+                {"Показатель": "Измерения", "Оценка": format_score(data["domain_scores"]["measurement_score"])},
+                {"Показатель": "Закрепления и связи", "Оценка": format_score(data["domain_scores"]["boundary_conditions_score"])},
+                {"Показатель": "Среда", "Оценка": format_score(data["domain_scores"]["environment_score"])},
+                {"Показатель": "Ремонты и усиления", "Оценка": format_score(data["domain_scores"]["intervention_history_score"])},
+                {"Показатель": "Испытания и НК", "Оценка": format_score(data["domain_scores"]["testing_score"])},
+                {"Показатель": "Качество и трассируемость", "Оценка": format_score(data["domain_scores"]["quality_traceability_score"])},
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
     missing_items = data.get("missing_items") or []
     if missing_items:
-        table = [{"Что не хватает": REQUIREMENT_LABELS.get(item.get("code"), item.get("description")), "Приоритет": item.get("priority")} for item in missing_items]
-        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.dataframe(
+            [
+                {
+                    "Что не хватает": REQUIREMENT_LABELS.get(item.get("code"), item.get("description")),
+                    "Приоритет": item.get("priority"),
+                    "Покрытие": format_score(item.get("coverage") or 0.0),
+                }
+                for item in missing_items
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
     else:
         st.success("Все ключевые данные на месте.")
 
 
-def show_readiness_tab(client: APIClient, selected_object_id: str) -> None:
+def show_readiness_tab(data: dict[str, Any] | None) -> None:
     st.subheader("Готовность к дальнейшему расчёту")
     st.caption("Это экран identification_readiness_report")
-    data = safe_call("Не удалось получить отчёт", client.get_identification_readiness, selected_object_id)
     if not data:
+        st.info("Отчёт пока недоступен.")
         return
+
     readiness_label = READINESS_TEXT.get(data["readiness_level"], data["readiness_level"])
     if data["readiness_level"] == "ready":
         st.success(readiness_label)
@@ -461,15 +904,53 @@ def show_readiness_tab(client: APIClient, selected_object_id: str) -> None:
         st.warning(readiness_label)
     else:
         st.error(readiness_label)
+
     st.metric("Общая готовность", format_score(data["total_score"]))
+
+    if data.get("task_scores"):
+        st.markdown("#### Готовность по классам задач")
+        st.dataframe(
+            [
+                {
+                    "Класс": "Геометрия",
+                    "Статус": TASK_STATUS_TEXT.get(data.get("geometry_ready"), data.get("geometry_ready")),
+                    "Оценка": format_score(data["task_scores"]["geometry_ready"]),
+                },
+                {
+                    "Класс": "Жёсткость",
+                    "Статус": TASK_STATUS_TEXT.get(data.get("stiffness_ready"), data.get("stiffness_ready")),
+                    "Оценка": format_score(data["task_scores"]["stiffness_ready"]),
+                },
+                {
+                    "Класс": "Повреждения",
+                    "Статус": TASK_STATUS_TEXT.get(data.get("damage_ready"), data.get("damage_ready")),
+                    "Оценка": format_score(data["task_scores"]["damage_ready"]),
+                },
+                {
+                    "Класс": "Материал",
+                    "Статус": TASK_STATUS_TEXT.get(data.get("material_ready"), data.get("material_ready")),
+                    "Оценка": format_score(data["task_scores"]["material_ready"]),
+                },
+                {
+                    "Класс": "Закрепления",
+                    "Статус": TASK_STATUS_TEXT.get(data.get("boundary_ready"), data.get("boundary_ready")),
+                    "Оценка": format_score(data["task_scores"]["boundary_ready"]),
+                },
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
     if data.get("recommended_parameters"):
         st.markdown("#### Что уже можно использовать")
         for item in data["recommended_parameters"]:
             st.write(f"- {item}")
+
     if data.get("blocked_parameters"):
         st.markdown("#### Что мешает")
         for item in data["blocked_parameters"]:
             st.write(f"- {REQUIREMENT_LABELS.get(item, item)}")
+
     if data.get("next_measurements"):
         st.markdown("#### Что добавить дальше")
         for item in data["next_measurements"]:
@@ -483,37 +964,83 @@ def show_package_tab(client: APIClient, selected_object_id: str) -> None:
         if data:
             package_text = json.dumps(data, ensure_ascii=False, indent=2)
             st.success("Пакет сформирован.")
-            st.download_button("Скачать observation_package.json", data=package_text, file_name=f"observation_package_{selected_object_id}.json", mime="application/json", use_container_width=True)
+            st.download_button(
+                "Скачать observation_package.json",
+                data=package_text,
+                file_name=f"observation_package_{selected_object_id}.json",
+                mime="application/json",
+                use_container_width=True,
+            )
             st.code(package_text[:3000] + ("\n..." if len(package_text) > 3000 else ""), language="json")
 
 
 def main() -> None:
     st.title("СКДО")
     st.write("Простой интерфейс для инженера. Здесь можно работать без Swagger и без ручных запросов.")
+
     client = make_client()
     objects = safe_call("Не удалось получить список объектов", client.list_objects) or []
     show_sidebar(objects)
     show_objects_section(client, objects)
+
     selected_object_id = st.session_state.get("selected_object_id")
     if not selected_object_id:
         st.info("Выберите объект слева или создайте новый.")
         return
+
+    current_object = next((item for item in objects if item["id"] == selected_object_id), None)
     elements = safe_call("Не удалось загрузить элементы", client.list_elements, selected_object_id) or []
     defects = safe_call("Не удалось загрузить дефекты", client.list_defects, selected_object_id) or []
     channels = safe_call("Не удалось загрузить каналы", client.list_channels, selected_object_id) or []
     measurements = safe_call("Не удалось загрузить измерения", client.list_measurements, selected_object_id) or []
-    tabs = st.tabs(["Элементы", "Дефекты", "Измерения", "Оценка данных", "Готовность", "Пакет"])
+    environment_records = safe_call("Не удалось загрузить среду", client.list_environment_records, selected_object_id) or []
+    interventions = safe_call("Не удалось загрузить ремонты", client.list_interventions, selected_object_id) or []
+    tests = safe_call("Не удалось загрузить испытания", client.list_tests, selected_object_id) or []
+    quality_records = safe_call("Не удалось загрузить качество", client.list_quality_records, selected_object_id) or []
+    information_data = safe_call("Не удалось получить оценку данных", client.get_information_sufficiency, selected_object_id)
+    readiness_data = safe_call("Не удалось получить отчёт", client.get_identification_readiness, selected_object_id)
+
+    tabs = st.tabs(
+        [
+            "Обзор",
+            "Элементы",
+            "Дефекты",
+            "Измерения",
+            "Среда",
+            "Ремонты",
+            "Испытания",
+            "Качество",
+            "Хронология",
+            "Оценка данных",
+            "Готовность",
+            "Пакет",
+        ]
+    )
+
     with tabs[0]:
-        show_elements_tab(client, selected_object_id, elements)
+        if current_object:
+            show_dashboard_section(current_object, elements, defects, channels, measurements, information_data, readiness_data)
     with tabs[1]:
-        show_defects_tab(client, selected_object_id, elements, defects)
+        show_elements_tab(client, selected_object_id, elements)
     with tabs[2]:
-        show_measurements_tab(client, selected_object_id, elements, channels, measurements)
+        show_defects_tab(client, selected_object_id, elements, defects)
     with tabs[3]:
-        show_information_tab(client, selected_object_id)
+        show_measurements_tab(client, selected_object_id, elements, channels, measurements)
     with tabs[4]:
-        show_readiness_tab(client, selected_object_id)
+        show_environment_tab(environment_records)
     with tabs[5]:
+        show_interventions_tab(interventions)
+    with tabs[6]:
+        show_tests_tab(tests)
+    with tabs[7]:
+        show_quality_tab(quality_records)
+    with tabs[8]:
+        show_timeline_tab(defects, interventions, tests)
+    with tabs[9]:
+        show_information_tab(information_data)
+    with tabs[10]:
+        show_readiness_tab(readiness_data)
+    with tabs[11]:
         show_package_tab(client, selected_object_id)
 
 

@@ -91,6 +91,18 @@ class APIClient:
     def list_measurements(self, object_id: str) -> list[dict[str, Any]]:
         return self._request("GET", "/measurements", params={"object_id": object_id})
 
+    def list_environment_records(self, object_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", "/environment-records", params={"object_id": object_id})
+
+    def list_interventions(self, object_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", "/interventions", params={"object_id": object_id})
+
+    def list_tests(self, object_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", "/tests", params={"object_id": object_id})
+
+    def list_quality_records(self, object_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", "/quality-records", params={"object_id": object_id})
+
     def import_json(self, entity_name: str, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return self._request("POST", f"/imports/{entity_name}/json", json_data=records)
 
@@ -102,4 +114,3 @@ class APIClient:
 
     def export_observation_package(self, object_id: str) -> dict[str, Any]:
         return self._request("GET", f"/exports/objects/{object_id}/observation-package")
-

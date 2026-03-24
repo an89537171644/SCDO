@@ -31,7 +31,11 @@ def parse_csv_bytes(content: bytes) -> list[dict[str, Any]]:
         decoded = content.decode("utf-8-sig")
     except Exception as exc:  # pragma: no cover
         raise HTTPException(status_code=400, detail=f"Invalid CSV import: {exc}") from exc
-    reader = csv.DictReader(io.StringIO(decoded))
+    try:
+        dialect = csv.Sniffer().sniff(decoded[:2048], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.DictReader(io.StringIO(decoded), dialect=dialect)
     return [dict(row) for row in reader]
 
 
@@ -62,4 +66,3 @@ def parse_upload(filename: str, content: bytes) -> list[dict[str, Any]]:
     if lower.endswith(".xlsx"):
         return parse_xlsx_bytes(content)
     raise HTTPException(status_code=400, detail="Supported import formats: JSON, CSV, XLSX.")
-
