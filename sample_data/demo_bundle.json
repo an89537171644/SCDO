@@ -1,0 +1,173 @@
+{
+  "object": {
+    "object_code": "DEMO-BRIDGE-001",
+    "object_name": "Демонстрационный путепровод",
+    "address": "г. Москва, Тестовый проезд, 1",
+    "coordinates": "55.751244,37.618423",
+    "function_type": "transport",
+    "responsibility_class": "KS-3",
+    "year_built": 1988,
+    "year_commissioned": 1989,
+    "design_service_life": 100,
+    "current_operational_mode": "normal",
+    "source_type": "passport"
+  },
+  "elements": [
+    {
+      "key": "system-main",
+      "hierarchy_type": "system",
+      "name": "Главная несущая система",
+      "structural_role": "primary",
+      "criticality_group": "A",
+      "element_type": "girder_system",
+      "geometry_type": "system",
+      "coordinates_global": "centerline:0,0,0",
+      "material_type": "steel",
+      "material_grade_design": "C345",
+      "support_type": "fixed"
+    },
+    {
+      "key": "beam-1",
+      "parent_key": "system-main",
+      "hierarchy_type": "element",
+      "system_id": "SYS-01",
+      "element_id_code": "B-01",
+      "name": "Главная балка B-01",
+      "structural_role": "girder",
+      "criticality_group": "A",
+      "element_type": "beam",
+      "geometry_type": "line",
+      "length": 24.0,
+      "span": 24.0,
+      "height": 1.6,
+      "area": 0.48,
+      "coordinates_local": "x:0..24",
+      "coordinates_global": "start:0,0,10;end:24,0,10",
+      "material_type": "steel",
+      "material_grade_design": "C345",
+      "material_grade_actual": "C325",
+      "elastic_modulus_design": 210000.0,
+      "strength_design": 345.0,
+      "support_type": "hinged",
+      "support_stiffness": 1000.0,
+      "joint_type": "welded",
+      "source_type": "survey"
+    }
+  ],
+  "defects": [
+    {
+      "element_key": "beam-1",
+      "defect_type": "corrosion",
+      "defect_subtype": "local",
+      "location_on_element": "midspan/web",
+      "detection_date": "2026-01-15T00:00:00Z",
+      "corrosion_area": 1.2,
+      "corrosion_depth_or_loss": 2.3,
+      "section_loss_estimate": 4.5,
+      "confidence_localization": 0.9,
+      "defect_status": "active",
+      "source_type": "inspection",
+      "source_document": "report-2026-01"
+    }
+  ],
+  "channels": [
+    {
+      "key": "deflection-b1",
+      "element_key": "beam-1",
+      "channel_code": "CH-B1-DEF",
+      "sensor_type": "LVDT",
+      "measured_quantity": "deflection",
+      "unit": "mm",
+      "measurement_class": "raw",
+      "spatial_location": "midspan",
+      "sampling_frequency": 1.0,
+      "source_type": "monitoring"
+    }
+  ],
+  "measurements": [
+    {
+      "key": "m1",
+      "element_key": "beam-1",
+      "channel_key": "deflection-b1",
+      "timestamp": "2026-01-15T10:00:00Z",
+      "value": 4.2,
+      "unit": "mm",
+      "quality_flag": "validated",
+      "source_type": "monitoring",
+      "method_reference": "sensor-readout",
+      "accuracy": 0.1,
+      "spatial_location": "midspan"
+    },
+    {
+      "key": "m2",
+      "element_key": "beam-1",
+      "channel_key": "deflection-b1",
+      "timestamp": "2026-01-15T11:00:00Z",
+      "value": 4.4,
+      "unit": "mm",
+      "quality_flag": "validated",
+      "source_type": "monitoring",
+      "method_reference": "sensor-readout",
+      "accuracy": 0.1,
+      "spatial_location": "midspan"
+    }
+  ],
+  "environment_records": [
+    {
+      "element_key": "beam-1",
+      "timestamp": "2026-01-15T10:00:00Z",
+      "temperature": -5.0,
+      "humidity": 82.0,
+      "corrosion_aggressiveness": "medium",
+      "cyclicity": "daily",
+      "seasonality": "winter",
+      "load_summary": "urban traffic",
+      "operation_mode": "normal",
+      "source_type": "weather"
+    }
+  ],
+  "interventions": [
+    {
+      "element_key": "beam-1",
+      "intervention_type": "protective_coating",
+      "description": "Локальное восстановление покрытия",
+      "date": "2025-06-10T00:00:00Z",
+      "expected_effect_on_degradation_rate": "decrease",
+      "as_built_documents": "maintenance-note-2025-06",
+      "quality_of_execution": "good",
+      "source_type": "maintenance"
+    }
+  ],
+  "tests": [
+    {
+      "element_key": "beam-1",
+      "test_type": "ultrasonic_thickness",
+      "measured_property": "wall_thickness",
+      "test_value": 18.6,
+      "unit": "mm",
+      "method": "UT",
+      "date": "2026-01-15T09:00:00Z",
+      "sampled_location": "midspan/web",
+      "confidence_interval": "95%",
+      "source_type": "ndt"
+    }
+  ],
+  "quality_records": [
+    {
+      "element_key": "beam-1",
+      "entity_type": "measurement",
+      "entity_ref": "m1",
+      "source_type": "monitoring",
+      "source_document": "raw-datalogger-export",
+      "author": "sensor-subsystem",
+      "method_reference": "sensor-readout",
+      "accuracy": 0.1,
+      "completeness_score": 0.95,
+      "repeatability_score": 0.92,
+      "traceability_score": 0.96,
+      "identification_suitability_score": 0.84,
+      "remarks": "validated by operator"
+    }
+  ]
+}
+
