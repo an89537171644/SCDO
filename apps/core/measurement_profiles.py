@@ -176,9 +176,9 @@ def build_template_csv(profile_code: str) -> str:
     profile = get_measurement_profile(profile_code)
     return "\n".join(
         [
-            "timestamp,value,unit,spatial_location,source_type,quality_flag",
-            f"2026-03-01T10:00:00Z,{profile.example_value},{profile.example_unit},midspan,monitoring,validated",
-            f"2026-03-01T11:00:00Z,{profile.example_value},{profile.example_unit},midspan,monitoring,validated",
+            "timestamp,value,unit,spatial_location,source_type,quality_flag,axis_direction,load_case_reference,temperature_compensated,aggregation_method",
+            f"2026-03-01T10:00:00Z,{profile.example_value},{profile.example_unit},midspan,monitoring,validated,Z,normal_operation,true,{profile.resampling_rule}",
+            f"2026-03-01T11:00:00Z,{profile.example_value},{profile.example_unit},midspan,monitoring,validated,Z,normal_operation,true,{profile.resampling_rule}",
         ]
     )
 

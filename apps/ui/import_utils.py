@@ -16,6 +16,13 @@ HEADER_ALIASES = {
     "method_reference": {"method_reference", "method", "метод"},
     "accuracy": {"accuracy", "точность"},
     "spatial_location": {"spatial_location", "location", "место", "точка"},
+    "axis_direction": {"axis_direction", "axis", "РѕСЃСЊ", "РЅР°РїСЂР°РІР»РµРЅРёРµ"},
+    "sign_convention": {"sign_convention", "sign", "Р·РЅР°Рє"},
+    "load_case_reference": {"load_case_reference", "load_case", "load", "РЅР°РіСЂСѓР·РєР°"},
+    "temperature_compensated": {"temperature_compensated", "temp_comp", "compensation", "РєРѕРјРїРµРЅСЃР°С†РёСЏ"},
+    "aggregation_method": {"aggregation_method", "aggregation", "resampling", "Р°РіСЂРµРіР°С†РёСЏ"},
+    "device_id": {"device_id", "device", "sensor_id", "РїСЂРёР±РѕСЂ"},
+    "calibration_reference": {"calibration_reference", "calibration", "РєР°Р»РёР±СЂРѕРІРєР°"},
 }
 
 
@@ -94,6 +101,13 @@ def _to_float(value: Any, field_name: str, row_index: int) -> float:
         ) from exc
 
 
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    return normalized in {"1", "true", "yes", "y", "да"}
+
+
 def prepare_measurement_records(
     rows: list[dict[str, Any]],
     *,
@@ -117,11 +131,26 @@ def prepare_measurement_records(
             "value": _to_float(row.get("value"), "value", index),
             "unit": str(row.get("unit") or default_unit),
         }
-        for optional_field in ("quality_flag", "source_type", "method_reference", "accuracy", "spatial_location"):
+        for optional_field in (
+            "quality_flag",
+            "source_type",
+            "method_reference",
+            "accuracy",
+            "spatial_location",
+            "axis_direction",
+            "sign_convention",
+            "load_case_reference",
+            "temperature_compensated",
+            "aggregation_method",
+            "device_id",
+            "calibration_reference",
+        ):
             value = row.get(optional_field)
             if value not in (None, ""):
                 if optional_field == "accuracy":
                     record[optional_field] = _to_float(value, optional_field, index)
+                elif optional_field == "temperature_compensated":
+                    record[optional_field] = _to_bool(value)
                 else:
                     record[optional_field] = value
         prepared.append(record)

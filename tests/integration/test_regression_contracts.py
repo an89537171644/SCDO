@@ -37,12 +37,19 @@ def test_demo_observation_package_contains_engineering_blocks() -> None:
         "qualitative_only",
         "not_ready",
     }
+    assert package.identification_readiness_report.geometry_and_scheme_ready in {
+        "identifiable",
+        "qualitative_only",
+        "not_ready",
+    }
     assert package.element_state_observation_records
     record = package.element_state_observation_records[0]
     assert "support_type" in record.boundary_conditions
     assert "material_grade_actual" in record.actual_material
+    assert "section_name" in record.section_properties
     assert record.data_coverage.temporal_coverage >= 0
     assert isinstance(record.critical_missing_data_list, list)
+    assert isinstance(record.critical_missing_data_by_element, list)
     assert isinstance(record.test_history, list)
     assert record.role_criticality == "high"
     assert record.consequence_class == "CC3"
@@ -61,7 +68,9 @@ def test_demo_information_sufficiency_golden_scores() -> None:
     finally:
         session.close()
 
-    assert round(index.total_score, 4) == 0.6722
-    assert round(index.level_scores.identification_readiness_score, 4) == 0.6443
-    assert round(index.domain_scores.structural_model_score, 4) == 0.8425
+    assert round(index.total_score, 4) == 0.6761
+    assert round(index.level_scores.identification_readiness_score, 4) == 0.6518
+    assert round(index.level_scores.identification_ready, 4) == 0.6518
+    assert round(index.domain_scores.structural_model_score, 4) == 0.8357
     assert round(index.domain_scores.measurement_score, 4) == 0.6159
+    assert round(index.coverage_by_parameter_group["geometry_and_scheme"], 4) == 0.9286

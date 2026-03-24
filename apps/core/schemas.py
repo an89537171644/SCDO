@@ -72,24 +72,56 @@ class StructuralElementBase(BaseModel):
     degradation_mechanisms: Optional[list[str]] = None
     element_type: Optional[str] = None
     geometry_type: Optional[str] = None
+    section_name: Optional[str] = None
+    section_family: Optional[str] = None
     length: Optional[float] = None
     span: Optional[float] = None
     height: Optional[float] = None
     thickness: Optional[float] = None
     area: Optional[float] = None
+    inertia_x: Optional[float] = None
+    inertia_y: Optional[float] = None
+    section_modulus_x: Optional[float] = None
+    section_modulus_y: Optional[float] = None
+    torsion_constant: Optional[float] = None
+    buckling_length_x: Optional[float] = None
+    buckling_length_y: Optional[float] = None
     coordinates_local: Optional[str] = None
     coordinates_global: Optional[str] = None
     material_type: Optional[str] = None
     material_grade_design: Optional[str] = None
     material_grade_actual: Optional[str] = None
+    concrete_class_design: Optional[str] = None
+    concrete_class_actual: Optional[str] = None
+    rebar_class: Optional[str] = None
+    cover_thickness: Optional[float] = None
+    reinforcement_ratio: Optional[float] = None
+    rebar_area: Optional[float] = None
+    carbonation_depth: Optional[float] = None
+    chloride_exposure_class: Optional[str] = None
+    steel_grade_design: Optional[str] = None
+    steel_grade_actual: Optional[str] = None
+    weld_type: Optional[str] = None
+    bolt_class: Optional[str] = None
+    corrosion_loss_mm: Optional[float] = None
     elastic_modulus_design: Optional[float] = None
     elastic_modulus_actual: Optional[float] = None
     strength_design: Optional[float] = None
     strength_actual: Optional[float] = None
+    material_density: Optional[float] = None
     support_type: Optional[str] = None
     support_stiffness: Optional[float] = None
+    support_kx: Optional[float] = None
+    support_ky: Optional[float] = None
+    support_kz: Optional[float] = None
+    support_rx: Optional[float] = None
+    support_ry: Optional[float] = None
+    support_rz: Optional[float] = None
     joint_type: Optional[str] = None
     joint_flexibility: Optional[float] = None
+    joint_flexibility_x: Optional[float] = None
+    joint_flexibility_y: Optional[float] = None
+    joint_flexibility_z: Optional[float] = None
     source_type: Optional[str] = None
 
 
@@ -113,24 +145,56 @@ class UpdateStructuralElement(BaseModel):
     degradation_mechanisms: Optional[list[str]] = None
     element_type: Optional[str] = None
     geometry_type: Optional[str] = None
+    section_name: Optional[str] = None
+    section_family: Optional[str] = None
     length: Optional[float] = None
     span: Optional[float] = None
     height: Optional[float] = None
     thickness: Optional[float] = None
     area: Optional[float] = None
+    inertia_x: Optional[float] = None
+    inertia_y: Optional[float] = None
+    section_modulus_x: Optional[float] = None
+    section_modulus_y: Optional[float] = None
+    torsion_constant: Optional[float] = None
+    buckling_length_x: Optional[float] = None
+    buckling_length_y: Optional[float] = None
     coordinates_local: Optional[str] = None
     coordinates_global: Optional[str] = None
     material_type: Optional[str] = None
     material_grade_design: Optional[str] = None
     material_grade_actual: Optional[str] = None
+    concrete_class_design: Optional[str] = None
+    concrete_class_actual: Optional[str] = None
+    rebar_class: Optional[str] = None
+    cover_thickness: Optional[float] = None
+    reinforcement_ratio: Optional[float] = None
+    rebar_area: Optional[float] = None
+    carbonation_depth: Optional[float] = None
+    chloride_exposure_class: Optional[str] = None
+    steel_grade_design: Optional[str] = None
+    steel_grade_actual: Optional[str] = None
+    weld_type: Optional[str] = None
+    bolt_class: Optional[str] = None
+    corrosion_loss_mm: Optional[float] = None
     elastic_modulus_design: Optional[float] = None
     elastic_modulus_actual: Optional[float] = None
     strength_design: Optional[float] = None
     strength_actual: Optional[float] = None
+    material_density: Optional[float] = None
     support_type: Optional[str] = None
     support_stiffness: Optional[float] = None
+    support_kx: Optional[float] = None
+    support_ky: Optional[float] = None
+    support_kz: Optional[float] = None
+    support_rx: Optional[float] = None
+    support_ry: Optional[float] = None
+    support_rz: Optional[float] = None
     joint_type: Optional[str] = None
     joint_flexibility: Optional[float] = None
+    joint_flexibility_x: Optional[float] = None
+    joint_flexibility_y: Optional[float] = None
+    joint_flexibility_z: Optional[float] = None
     source_type: Optional[str] = None
 
 
@@ -165,6 +229,13 @@ class DefectBase(BaseModel):
     rebar_corrosion_class: Optional[str] = None
     carbonation_depth: Optional[float] = None
     bond_loss_flag: Optional[bool] = None
+    damage_mechanism: Optional[str] = None
+    severity_class: Optional[str] = None
+    face_or_zone: Optional[str] = None
+    local_coordinate: Optional[str] = None
+    growth_rate_estimate: Optional[float] = None
+    inspection_method: Optional[str] = None
+    confidence_severity: Optional[float] = None
     confidence_localization: Optional[float] = None
     defect_status: Optional[str] = None
     source_type: Optional[str] = None
@@ -200,6 +271,13 @@ class UpdateDefect(BaseModel):
     rebar_corrosion_class: Optional[str] = None
     carbonation_depth: Optional[float] = None
     bond_loss_flag: Optional[bool] = None
+    damage_mechanism: Optional[str] = None
+    severity_class: Optional[str] = None
+    face_or_zone: Optional[str] = None
+    local_coordinate: Optional[str] = None
+    growth_rate_estimate: Optional[float] = None
+    inspection_method: Optional[str] = None
+    confidence_severity: Optional[float] = None
     confidence_localization: Optional[float] = None
     defect_status: Optional[str] = None
     source_type: Optional[str] = None
@@ -220,6 +298,13 @@ class ObservationChannelBase(BaseModel):
     measurement_class: str = "raw"
     spatial_location: Optional[str] = None
     sampling_frequency: Optional[float] = None
+    axis_direction: Optional[str] = None
+    sign_convention: Optional[str] = None
+    load_case_reference: Optional[str] = None
+    temperature_compensated: Optional[bool] = None
+    aggregation_method: Optional[str] = None
+    device_id: Optional[str] = None
+    calibration_reference: Optional[str] = None
     source_type: Optional[str] = None
 
 
@@ -235,6 +320,13 @@ class UpdateObservationChannel(BaseModel):
     measurement_class: Optional[str] = None
     spatial_location: Optional[str] = None
     sampling_frequency: Optional[float] = None
+    axis_direction: Optional[str] = None
+    sign_convention: Optional[str] = None
+    load_case_reference: Optional[str] = None
+    temperature_compensated: Optional[bool] = None
+    aggregation_method: Optional[str] = None
+    device_id: Optional[str] = None
+    calibration_reference: Optional[str] = None
     source_type: Optional[str] = None
 
 
@@ -254,6 +346,13 @@ class MeasurementBase(BaseModel):
     method_reference: Optional[str] = None
     accuracy: Optional[float] = None
     spatial_location: Optional[str] = None
+    axis_direction: Optional[str] = None
+    sign_convention: Optional[str] = None
+    load_case_reference: Optional[str] = None
+    temperature_compensated: Optional[bool] = None
+    aggregation_method: Optional[str] = None
+    device_id: Optional[str] = None
+    calibration_reference: Optional[str] = None
 
 
 class CreateMeasurement(MeasurementBase):
@@ -269,6 +368,13 @@ class UpdateMeasurement(BaseModel):
     method_reference: Optional[str] = None
     accuracy: Optional[float] = None
     spatial_location: Optional[str] = None
+    axis_direction: Optional[str] = None
+    sign_convention: Optional[str] = None
+    load_case_reference: Optional[str] = None
+    temperature_compensated: Optional[bool] = None
+    aggregation_method: Optional[str] = None
+    device_id: Optional[str] = None
+    calibration_reference: Optional[str] = None
 
 
 class MeasurementRead(ReadMixin, MeasurementBase):
@@ -480,6 +586,9 @@ class SufficiencyLevelScores(BaseModel):
     descriptive_readiness_score: float
     identification_readiness_score: float
     predictive_readiness_score: float
+    descriptive_only: float
+    identification_ready: float
+    prediction_ready: float
 
 
 class DataCoverage(BaseModel):
@@ -500,6 +609,9 @@ class InformationSufficiencyIndex(BaseModel):
     level_scores: SufficiencyLevelScores
     responsibility_factor: float
     requirement_scores: dict[str, float]
+    coverage_by_critical_elements: dict[str, float]
+    coverage_by_parameter_group: dict[str, float]
+    quality_weighted_measurement_coverage: float
 
 
 class IdentificationReadinessReport(BaseModel):
@@ -514,6 +626,12 @@ class IdentificationReadinessReport(BaseModel):
     damage_ready: str
     material_ready: str
     boundary_ready: str
+    geometry_and_scheme_ready: str
+    materials_ready: str
+    damage_state_ready: str
+    boundary_conditions_ready: str
+    dynamic_response_ready: str
+    prognosis_preconditions_ready: str
     task_scores: dict[str, float]
 
 
@@ -537,9 +655,11 @@ class ElementStateObservationRecord(BaseModel):
     design_geometry: dict[str, Any]
     design_material: dict[str, Any]
     actual_material: dict[str, Any]
+    section_properties: dict[str, Any]
     boundary_conditions: dict[str, Any]
     data_coverage: DataCoverage
     critical_missing_data_list: list[MissingDataItem]
+    critical_missing_data_by_element: list[MissingDataItem]
     current_defects: list[dict[str, Any]]
     current_measurements: list[dict[str, Any]]
     current_environment: list[dict[str, Any]]

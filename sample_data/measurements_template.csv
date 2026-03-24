@@ -1,3 +1,3 @@
-timestamp;value;unit;source_type;quality_flag
-2026-03-01T10:00:00Z;1,25;mm;monitoring;ok
-2026-03-01T11:00:00Z;1,30;mm;monitoring;ok
+timestamp;value;unit;source_type;quality_flag;axis;load;compensation
+2026-03-01T10:00:00Z;1,25;mm;monitoring;ok;Z;traffic;yes
+2026-03-01T11:00:00Z;1,30;mm;monitoring;ok;Z;traffic;yes

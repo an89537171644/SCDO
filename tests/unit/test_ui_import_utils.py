@@ -10,8 +10,8 @@ from apps.ui.import_utils import prepare_measurement_records
 
 def test_prepare_measurement_records_supports_semicolon_csv_and_comma_decimal() -> None:
     csv_bytes = (
-        "timestamp;value;unit;accuracy;source_type\n"
-        "2026-03-01T10:00:00Z;1,25;mm;0,05;monitoring\n"
+        "timestamp;value;unit;accuracy;source_type;axis;load;compensation\n"
+        "2026-03-01T10:00:00Z;1,25;mm;0,05;monitoring;Z;traffic;yes\n"
     ).encode("utf-8")
 
     rows = parse_measurement_file("measurements.csv", csv_bytes)
@@ -27,6 +27,9 @@ def test_prepare_measurement_records_supports_semicolon_csv_and_comma_decimal() 
     assert records[0]["value"] == 1.25
     assert records[0]["accuracy"] == 0.05
     assert records[0]["unit"] == "mm"
+    assert records[0]["axis_direction"] == "Z"
+    assert records[0]["load_case_reference"] == "traffic"
+    assert records[0]["temperature_compensated"] is True
 
 
 def test_parse_measurement_file_reads_xlsx() -> None:

@@ -116,6 +116,16 @@ def main() -> None:
             )
             services.test_service.create(session, payload)
 
+        for record in bundle.get("media_assets", []):
+            payload = schemas.CreateMediaAsset.model_validate(
+                {
+                    **{key: value for key, value in record.items() if key not in {"element_key", "defect_key"}},
+                    "object_id": asset_object.id,
+                    "element_id": element_id_by_key.get(record.get("element_key")),
+                }
+            )
+            services.media_service.create(session, payload)
+
         for record in bundle["quality_records"]:
             payload = schemas.CreateDataQualityRecord.model_validate(
                 {

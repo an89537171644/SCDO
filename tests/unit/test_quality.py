@@ -60,6 +60,13 @@ def test_information_sufficiency_returns_high_score_for_complete_bundle() -> Non
         unit="mm",
         spatial_location="midspan",
         sampling_frequency=1.0,
+        axis_direction="Z",
+        sign_convention="downward_positive",
+        load_case_reference="traffic",
+        temperature_compensated=True,
+        aggregation_method="mean_over_window",
+        device_id="LVDT-1",
+        calibration_reference="CAL-1",
         source_type="monitoring",
     )
     measurement_base_time = datetime.now(timezone.utc)
@@ -73,11 +80,18 @@ def test_information_sufficiency_returns_high_score_for_complete_bundle() -> Non
             value=1.2 + (idx * 0.1),
             unit="mm",
             quality_flag="validated",
-            source_type="monitoring",
-            method_reference="sensor-readout",
-            accuracy=0.05,
-            spatial_location="midspan",
-        )
+                source_type="monitoring",
+                method_reference="sensor-readout",
+                accuracy=0.05,
+                spatial_location="midspan",
+                axis_direction="Z",
+                sign_convention="downward_positive",
+                load_case_reference="traffic",
+                temperature_compensated=True,
+                aggregation_method="mean_over_window",
+                device_id="LVDT-1",
+                calibration_reference="CAL-1",
+            )
         for idx in range(1, 5)
     ]
     environment = models.EnvironmentRecord(
@@ -140,6 +154,10 @@ def test_information_sufficiency_returns_high_score_for_complete_bundle() -> Non
 
     assert index.total_score >= 0.65
     assert index.level_scores.identification_readiness_score >= 0.65
+    assert index.level_scores.identification_ready >= 0.65
+    assert index.coverage_by_parameter_group["geometry_and_scheme"] >= 0.5
+    assert index.coverage_by_parameter_group["dynamic_response"] >= 0.5
+    assert index.quality_weighted_measurement_coverage >= 0.5
     assert index.missing_items == []
 
 
@@ -161,6 +179,8 @@ def test_identification_readiness_blocks_when_core_p0_fields_missing() -> None:
 
     assert report.readiness_level == "not_ready"
     assert report.geometry_ready == "not_ready"
+    assert report.geometry_and_scheme_ready == "not_ready"
+    assert report.dynamic_response_ready == "not_ready"
     assert "element.geometry" in report.blocked_parameters
 
 

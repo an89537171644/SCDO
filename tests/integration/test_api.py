@@ -69,19 +69,28 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "degradation_mechanisms": ["corrosion", "fatigue"],
             "element_type": "beam",
             "geometry_type": "line",
+            "section_name": "I-600",
+            "section_family": "I-beam",
             "length": 20.0,
             "coordinates_global": "0,0,0",
             "material_type": "steel",
             "material_grade_design": "C345",
             "material_grade_actual": "C325",
+            "steel_grade_design": "C345",
+            "steel_grade_actual": "C325",
             "elastic_modulus_design": 210000.0,
             "elastic_modulus_actual": 205000.0,
             "strength_design": 345.0,
             "strength_actual": 330.0,
+            "material_density": 7850.0,
             "support_type": "hinged",
             "support_stiffness": 5000.0,
+            "support_kx": 1000.0,
+            "support_ky": 1000.0,
+            "support_kz": 2000.0,
             "joint_type": "bolted",
-            "joint_flexibility": 0.02
+            "joint_flexibility": 0.02,
+            "joint_flexibility_x": 0.01
         },
     )
     assert element_response.status_code == 201
@@ -107,6 +116,12 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "section_loss_percent": 4.0,
             "bolt_condition": "minor corrosion",
             "weld_damage_type": "surface indication",
+            "damage_mechanism": "corrosion_fatigue",
+            "severity_class": "S2",
+            "face_or_zone": "web",
+            "local_coordinate": "x=10m",
+            "inspection_method": "visual+UT",
+            "confidence_severity": 0.8,
             "local_buckling_flag": False,
             "source_type": "inspection"
         },
@@ -128,6 +143,13 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "unit": "mm",
             "spatial_location": "midspan",
             "sampling_frequency": 1.0,
+            "axis_direction": "Z",
+            "sign_convention": "downward_positive",
+            "load_case_reference": "traffic",
+            "temperature_compensated": True,
+            "aggregation_method": "mean_over_window",
+            "device_id": "LVDT-1",
+            "calibration_reference": "CAL-1",
             "source_type": "monitoring"
         },
     )
@@ -147,7 +169,14 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
             "source_type": "monitoring",
             "method_reference": "sensor-readout",
             "accuracy": 0.1,
-            "spatial_location": "midspan"
+            "spatial_location": "midspan",
+            "axis_direction": "Z",
+            "sign_convention": "downward_positive",
+            "load_case_reference": "traffic",
+            "temperature_compensated": True,
+            "aggregation_method": "mean_over_window",
+            "device_id": "LVDT-1",
+            "calibration_reference": "CAL-1"
         },
     )
     assert measurement_response.status_code == 201
@@ -175,6 +204,8 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
     assert analytics["p0_score"] >= 0.7
     assert analytics["domain_scores"]["measurement_score"] >= 0.6
     assert analytics["level_scores"]["identification_readiness_score"] >= 0.6
+    assert analytics["coverage_by_parameter_group"]["geometry_and_scheme"] >= 0.5
+    assert analytics["coverage_by_parameter_group"]["dynamic_response"] >= 0.5
 
     package_response = client.get(f"/exports/objects/{object_id}/observation-package")
     assert package_response.status_code == 200
@@ -193,6 +224,11 @@ def test_full_api_flow_creates_bundle_and_exports_package() -> None:
     assert exported_defect["section_loss_percent"] == 4.0
     assert "boundary_conditions" in element_state
     assert "actual_material" in element_state
+    assert "section_properties" in element_state
+    assert "critical_missing_data_by_element" in element_state
     assert "critical_missing_data_list" in element_state
     assert element_state["role_criticality"] == "high"
     assert element_state["identification_priority"] == "high"
+    assert element_state["section_properties"]["section_name"] == "I-600"
+    assert element_state["actual_material"]["steel_grade_actual"] == "C325"
+    assert element_state["boundary_conditions"]["support_kz"] == 2000.0

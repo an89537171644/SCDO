@@ -80,6 +80,16 @@ def _element_geometry_score(element: models.StructuralElement) -> float:
         sum(1 for value in (element.length, element.span, element.height, element.thickness, element.area) if _present(value)) / 2,
         1.0,
     )
+    section_score = _avg(
+        [
+            1.0 if _present(element.section_name) else 0.0,
+            1.0 if _present(element.section_family) else 0.0,
+            1.0 if _one_of_present(element.inertia_x, element.inertia_y) else 0.0,
+            1.0 if _one_of_present(element.section_modulus_x, element.section_modulus_y) else 0.0,
+            1.0 if _present(element.torsion_constant) else 0.0,
+            1.0 if _one_of_present(element.buckling_length_x, element.buckling_length_y) else 0.0,
+        ]
+    )
     return _avg(
         [
             1.0 if _present(element.hierarchy_type) else 0.0,
@@ -87,6 +97,7 @@ def _element_geometry_score(element: models.StructuralElement) -> float:
             1.0 if _present(element.element_type) else 0.0,
             1.0 if _present(element.geometry_type) else 0.0,
             dimension_score,
+            section_score,
             1.0 if _one_of_present(element.coordinates_global, element.coordinates_local) else 0.0,
         ]
     )
@@ -100,6 +111,24 @@ def _element_material_score(element: models.StructuralElement) -> float:
             1.0 if _one_of_present(element.elastic_modulus_design, element.strength_design) else 0.0,
             1.0 if _present(element.material_grade_actual) else 0.0,
             1.0 if _one_of_present(element.elastic_modulus_actual, element.strength_actual) else 0.0,
+            1.0
+            if _one_of_present(
+                element.concrete_class_design,
+                element.concrete_class_actual,
+                element.rebar_class,
+                element.cover_thickness,
+                element.reinforcement_ratio,
+                element.rebar_area,
+                element.carbonation_depth,
+                element.chloride_exposure_class,
+                element.steel_grade_design,
+                element.steel_grade_actual,
+                element.weld_type,
+                element.bolt_class,
+                element.corrosion_loss_mm,
+                element.material_density,
+            )
+            else 0.0,
         ]
     )
 
@@ -109,8 +138,11 @@ def _element_boundary_score(element: models.StructuralElement) -> float:
         [
             1.0 if _present(element.support_type) else 0.0,
             1.0 if _present(element.support_stiffness) else 0.0,
+            1.0 if _one_of_present(element.support_kx, element.support_ky, element.support_kz) else 0.0,
+            1.0 if _one_of_present(element.support_rx, element.support_ry, element.support_rz) else 0.0,
             1.0 if _present(element.joint_type) else 0.0,
             1.0 if _present(element.joint_flexibility) else 0.0,
+            1.0 if _one_of_present(element.joint_flexibility_x, element.joint_flexibility_y, element.joint_flexibility_z) else 0.0,
         ]
     )
 
@@ -153,6 +185,13 @@ def _defect_completeness(defect: models.Defect) -> float:
                 defect.rebar_corrosion_class,
                 defect.carbonation_depth,
                 defect.bond_loss_flag,
+                defect.damage_mechanism,
+                defect.severity_class,
+                defect.face_or_zone,
+                defect.local_coordinate,
+                defect.growth_rate_estimate,
+                defect.inspection_method,
+                defect.confidence_severity,
             )
             else 0.0,
         ]
@@ -166,6 +205,13 @@ def _channel_metadata_score(channel: models.ObservationChannel) -> float:
             1.0 if _present(channel.measured_quantity) else 0.0,
             1.0 if _present(channel.unit) else 0.0,
             1.0 if _present(channel.spatial_location) else 0.0,
+            1.0 if _present(channel.axis_direction) else 0.0,
+            1.0 if _present(channel.sign_convention) else 0.0,
+            1.0 if _present(channel.load_case_reference) else 0.0,
+            1.0 if _present(channel.aggregation_method) else 0.0,
+            1.0 if _present(channel.device_id) else 0.0,
+            1.0 if _present(channel.calibration_reference) else 0.0,
+            1.0 if channel.temperature_compensated is not None else 0.0,
             1.0 if _one_of_present(channel.sampling_frequency, channel.source_type) else 0.0,
         ]
     )
@@ -178,6 +224,13 @@ def _measurement_metadata_score(measurement: models.Measurement) -> float:
             1.0 if _present(measurement.method_reference) else 0.0,
             1.0 if _present(measurement.accuracy) else 0.0,
             1.0 if _present(measurement.spatial_location) else 0.0,
+            1.0 if _present(measurement.axis_direction) else 0.0,
+            1.0 if _present(measurement.sign_convention) else 0.0,
+            1.0 if _present(measurement.load_case_reference) else 0.0,
+            1.0 if _present(measurement.aggregation_method) else 0.0,
+            1.0 if _present(measurement.device_id) else 0.0,
+            1.0 if _present(measurement.calibration_reference) else 0.0,
+            1.0 if measurement.temperature_compensated is not None else 0.0,
         ]
     )
 
@@ -307,6 +360,51 @@ def _score_map(asset_object: models.AssetObject, elements: list[models.Structura
     }
 
 
+def _critical_element_coverages(
+    elements: list[models.StructuralElement],
+    defects: list[models.Defect],
+    channels: list[models.ObservationChannel],
+    measurements: list[models.Measurement],
+) -> dict[str, float]:
+    coverages: dict[str, float] = {}
+    for element in _critical_elements(elements):
+        element_defects = [item for item in defects if item.element_id == element.id]
+        element_channels = [item for item in channels if item.element_id == element.id]
+        element_measurements = [item for item in measurements if item.element_id == element.id]
+        coverages[element.id] = _avg(
+            [
+                _element_geometry_score(element),
+                _element_material_score(element),
+                _element_boundary_score(element),
+                _defect_registry_score([element], element_defects),
+                _measurement_score([element], element_channels, element_measurements),
+            ]
+        )
+    return coverages
+
+
+def _parameter_group_coverage(score_map: dict[str, float]) -> dict[str, float]:
+    return {
+        "geometry_and_scheme": _clamp(_avg([score_map.get("element.tree", 0.0), score_map.get("element.geometry", 0.0)])),
+        "materials": _clamp(score_map.get("element.material", 0.0)),
+        "damage_state": _clamp(score_map.get("defect.registry", 0.0)),
+        "boundary_conditions": _clamp(score_map.get("element.boundary_conditions", 0.0)),
+        "dynamic_response": _clamp(
+            _avg([score_map.get("observation.measurements", 0.0), score_map.get("measurement.channel_metadata", 0.0)])
+        ),
+        "prognosis_preconditions": _clamp(
+            _avg(
+                [
+                    score_map.get("environment.effects", 0.0),
+                    score_map.get("intervention.history", 0.0),
+                    score_map.get("tests.ndt", 0.0),
+                    score_map.get("quality.traceability", 0.0),
+                ]
+            )
+        ),
+    }
+
+
 OBJECT_REQUIREMENTS: tuple[Requirement, ...] = (
     Requirement("object.identity", "P0", "Паспорт объекта должен содержать код, наименование и базовую привязку.", 0.95, 0.75, lambda scores: scores["object.identity"]),
     Requirement("object.function_type", "P0", "Нужно назначение объекта.", 0.85, 0.95, lambda scores: scores["object.function_type"]),
@@ -356,8 +454,21 @@ def information_sufficiency_index(asset_object: models.AssetObject, elements: li
     identification_raw = _clamp((0.22 * domain_scores.structural_model_score) + (0.22 * domain_scores.measurement_score) + (0.14 * domain_scores.boundary_conditions_score) + (0.12 * domain_scores.defect_registry_score) + (0.12 * domain_scores.testing_score) + (0.18 * domain_scores.quality_traceability_score))
     predictive_raw = _clamp((0.40 * identification_raw) + (0.20 * domain_scores.environment_score) + (0.15 * domain_scores.intervention_history_score) + (0.15 * domain_scores.testing_score) + (0.10 * domain_scores.quality_traceability_score))
     responsibility_factor = _responsibility_factor(asset_object)
-    level_scores = schemas.SufficiencyLevelScores(descriptive_readiness_score=_clamp(descriptive_raw * responsibility_factor), identification_readiness_score=_clamp(identification_raw * responsibility_factor), predictive_readiness_score=_clamp(predictive_raw * responsibility_factor))
+    descriptive_score = _clamp(descriptive_raw * responsibility_factor)
+    identification_score = _clamp(identification_raw * responsibility_factor)
+    predictive_score = _clamp(predictive_raw * responsibility_factor)
+    level_scores = schemas.SufficiencyLevelScores(
+        descriptive_readiness_score=descriptive_score,
+        identification_readiness_score=identification_score,
+        predictive_readiness_score=predictive_score,
+        descriptive_only=descriptive_score,
+        identification_ready=identification_score,
+        prediction_ready=predictive_score,
+    )
     total_score = _clamp(_clamp((0.50 * identification_raw) + (0.30 * descriptive_raw) + (0.20 * predictive_raw)) * responsibility_factor)
+    coverage_by_critical_elements = _critical_element_coverages(elements, defects, channels, measurements)
+    coverage_by_parameter_group = _parameter_group_coverage(score_map)
+    quality_weighted_measurement_coverage = _clamp(_avg([score_map["observation.measurements"], score_map["quality.traceability"]]))
     return schemas.InformationSufficiencyIndex(
         object_id=asset_object.id,
         total_score=total_score,
@@ -369,6 +480,9 @@ def information_sufficiency_index(asset_object: models.AssetObject, elements: li
         level_scores=level_scores,
         responsibility_factor=responsibility_factor,
         requirement_scores={key: _clamp(value) for key, value in score_map.items()},
+        coverage_by_critical_elements=coverage_by_critical_elements,
+        coverage_by_parameter_group=coverage_by_parameter_group,
+        quality_weighted_measurement_coverage=quality_weighted_measurement_coverage,
     )
 
 
@@ -449,5 +563,115 @@ def identification_readiness(index: schemas.InformationSufficiencyIndex, element
         damage_ready=_readiness_label(task_scores["damage_ready"]),
         material_ready=_readiness_label(task_scores["material_ready"]),
         boundary_ready=_readiness_label(task_scores["boundary_ready"]),
+        task_scores=task_scores,
+    )
+
+
+def identification_readiness(index: schemas.InformationSufficiencyIndex, elements: list[models.StructuralElement] | None = None, measurements: list[models.Measurement] | None = None, defects: list[models.Defect] | None = None, tests: list[models.TestRecord] | None = None) -> schemas.IdentificationReadinessReport:
+    elements = elements or []
+    measurements = measurements or []
+    defects = defects or []
+    tests = tests or []
+    requirement_scores = index.requirement_scores
+    group_scores = index.coverage_by_parameter_group
+
+    geometry_score = _clamp(group_scores.get("geometry_and_scheme", 0.0))
+    materials_score = _clamp(group_scores.get("materials", 0.0))
+    damage_score = _clamp(group_scores.get("damage_state", 0.0))
+    boundary_score = _clamp(group_scores.get("boundary_conditions", 0.0))
+    dynamic_score = _clamp(group_scores.get("dynamic_response", 0.0))
+    prognosis_score = _clamp(group_scores.get("prognosis_preconditions", 0.0))
+    stiffness_score = _clamp(_avg([geometry_score, dynamic_score, boundary_score]))
+
+    task_scores = {
+        "geometry_and_scheme": geometry_score,
+        "materials": materials_score,
+        "damage_state": damage_score,
+        "boundary_conditions": boundary_score,
+        "dynamic_response": dynamic_score,
+        "prognosis_preconditions": prognosis_score,
+        "geometry_ready": geometry_score,
+        "stiffness_ready": stiffness_score,
+        "damage_ready": damage_score,
+        "material_ready": materials_score,
+        "boundary_ready": boundary_score,
+    }
+    overall = index.level_scores.identification_ready
+    key_scores = (
+        geometry_score,
+        materials_score,
+        damage_score,
+        boundary_score,
+        dynamic_score,
+        prognosis_score,
+    )
+    identifiable_count = sum(1 for value in key_scores if value >= 0.75)
+    qualitative_count = sum(1 for value in key_scores if 0.45 <= value < 0.75)
+    readiness = "ready" if overall >= 0.75 and identifiable_count >= 4 else "partial" if overall >= 0.45 or identifiable_count or qualitative_count else "not_ready"
+
+    recommended_parameters: list[str] = []
+    if geometry_score >= 0.45:
+        recommended_parameters.append("Геометрия и расчетная схема")
+    if materials_score >= 0.45 and (tests or elements):
+        recommended_parameters.append("Фактические характеристики материала")
+    if damage_score >= 0.45 and defects:
+        recommended_parameters.append("Дескрипторы повреждений и деградации")
+    if boundary_score >= 0.45:
+        recommended_parameters.append("Параметры закреплений и узлов")
+    if dynamic_score >= 0.45 and measurements:
+        recommended_parameters.append("Динамический или деформационный отклик конструкции")
+    if prognosis_score >= 0.45:
+        recommended_parameters.append("Условия для прогноза и сценарного анализа")
+
+    next_measurements: list[str] = []
+    if geometry_score < 0.75:
+        next_measurements.append("Уточнить геометрию, сечение, пролеты и пространственную привязку элементов")
+    if dynamic_score < 0.75:
+        next_measurements.append("Добавить временные ряды прогибов, деформаций, перемещений или ускорений")
+    if boundary_score < 0.75:
+        next_measurements.append("Собрать данные о закреплениях, узлах и податливости связей")
+    if materials_score < 0.75:
+        next_measurements.append("Подтвердить фактические свойства материала испытаниями или НК")
+    if damage_score < 0.75:
+        next_measurements.append("Параметризовать дефекты: размеры, зона, тяжесть и развитие во времени")
+    if prognosis_score < 0.75:
+        next_measurements.append("Добавить среду, историю вмешательств, испытания и метрики качества данных")
+    if requirement_scores.get("quality.traceability", 0.0) < 0.75:
+        next_measurements.append("Добавить источник, метод, точность и traceability metadata")
+
+    material_families = _material_families(elements)
+    if "steel" in material_families:
+        next_measurements.extend(
+            [
+                "Для стальных элементов собрать толщины, потери сечения, состояние узлов и карты коррозии",
+                "Для стальных элементов уточнить повреждения сварных и болтовых соединений",
+            ]
+        )
+    if "concrete" in material_families:
+        next_measurements.extend(
+            [
+                "Для железобетона собрать раскрытие трещин, защитный слой и НК бетона",
+                "Для железобетона уточнить состояние арматуры и признаки потери сцепления",
+            ]
+        )
+
+    return schemas.IdentificationReadinessReport(
+        object_id=index.object_id,
+        readiness_level=readiness,
+        total_score=overall,
+        recommended_parameters=sorted(set(recommended_parameters)),
+        blocked_parameters=[item.code for item in index.missing_items],
+        next_measurements=list(dict.fromkeys(next_measurements)),
+        geometry_ready=_readiness_label(geometry_score),
+        stiffness_ready=_readiness_label(stiffness_score),
+        damage_ready=_readiness_label(damage_score),
+        material_ready=_readiness_label(materials_score),
+        boundary_ready=_readiness_label(boundary_score),
+        geometry_and_scheme_ready=_readiness_label(geometry_score),
+        materials_ready=_readiness_label(materials_score),
+        damage_state_ready=_readiness_label(damage_score),
+        boundary_conditions_ready=_readiness_label(boundary_score),
+        dynamic_response_ready=_readiness_label(dynamic_score),
+        prognosis_preconditions_ready=_readiness_label(prognosis_score),
         task_scores=task_scores,
     )

@@ -103,8 +103,47 @@ class APIClient:
     def list_quality_records(self, object_id: str) -> list[dict[str, Any]]:
         return self._request("GET", "/quality-records", params={"object_id": object_id})
 
+    def list_media_assets(self, object_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", "/media-assets", params={"object_id": object_id})
+
     def import_json(self, entity_name: str, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return self._request("POST", f"/imports/{entity_name}/json", json_data=records)
+
+    def upload_media_asset(
+        self,
+        *,
+        object_id: str,
+        file_name: str,
+        content: bytes,
+        content_type: str | None,
+        element_id: str | None = None,
+        defect_id: str | None = None,
+        description: str | None = None,
+        source_type: str | None = None,
+    ) -> dict[str, Any]:
+        data: dict[str, Any] = {"object_id": object_id}
+        if element_id:
+            data["element_id"] = element_id
+        if defect_id:
+            data["defect_id"] = defect_id
+        if description:
+            data["description"] = description
+        if source_type:
+            data["source_type"] = source_type
+        files = {"file": (file_name, content, content_type or "application/octet-stream")}
+        try:
+            response = requests.post(
+                self._full_url("/media-assets/upload"),
+                data=data,
+                files=files,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            raise APIError(self._extract_error(exc.response)) from exc
+        except requests.RequestException as exc:
+            raise APIError("Не удалось подключиться к API. Проверьте, что backend запущен.") from exc
+        return response.json()
 
     def get_information_sufficiency(self, object_id: str) -> dict[str, Any]:
         return self._request("GET", f"/analytics/objects/{object_id}/information-sufficiency")
